@@ -13,7 +13,68 @@ from copy import deepcopy
 from itertools import repeat
 from multiprocessing.pool import Pool
 import argparse
+import pickle
+import datetime
 
+def get_statistics_next_epoch(agent,envt):
+    ret_dictionary = {'total_delivery_delay':0,'requests_served':0}
+    start_time = envt.current_time
+    current_time = envt.current_time + agent.position.time_to_next_location
+    current_location = agent.position.next_location
+    current_capacity = agent.path.current_capacity
+
+    for node_idx, node in enumerate(agent.path.request_order):
+        next_location, deadline = agent.path.get_info(node)
+
+        # Delay related checks
+        travel_time = envt.get_travel_time(current_location, next_location)
+        if (current_time + travel_time > deadline):
+            return invalid_path_trace('Does not meet deadline at node {}'.format(node_idx))
+
+        current_time += travel_time
+        current_location = next_location
+
+        if current_time-start_time>envt.EPOCH_LENGTH:
+            break
+
+        # Updating available delay
+        if (node.expected_visit_time != current_time):
+            invalid_path_trace("(Ignored) Visit time incorrect at node {}".format(node_idx))
+            node.expected_visit_time = current_time
+
+        if (node.is_dropoff):
+            ret_dictionary['total_delivery_delay']+=deadline - node.expected_visit_time
+            ret_dictionary['requests_served']+=1
+
+        # Capacity related checks
+        if (current_capacity > envt.MAX_CAPACITY):
+            return invalid_path_trace('Exceeds MAX_CAPACITY at node {}'.format(node_idx))
+
+        if (node.is_dropoff):
+            next_capacity = current_capacity - 1
+        else:
+            next_capacity = current_capacity + 1
+        if (node.current_capacity != next_capacity):
+            invalid_path_trace("(Ignored) Capacity incorrect at node {}".format(node_idx))
+            node.current_capacity = next_capacity
+        current_capacity = node.current_capacity
+
+    return ret_dictionary
+
+def profit_function(travel_time):
+    minutes_driven = travel_time/60
+    return round(minutes_driven+5,2)
+
+def get_profit_distribution(scored_final_actions):
+    profits = []
+    for action,_ in scored_final_actions:
+        # Calculate the profit 
+        for request in action.requests:
+            dropoff = request.dropoff
+            pickup = request.pickup
+            travel_time = envt.get_travel_time(pickup,dropoff)
+            profits.append(profit_function(travel_time))
+    return profits
 
 def run_epoch(envt,
               oracle,
@@ -38,11 +99,20 @@ def run_epoch(envt,
     request_generator = envt.get_request_batch(DAY)
     total_value_generated = 0
     num_total_requests = 0
+
+    ret_dictionary = {'epoch_requests_completed':[],
+                      'epoch_requests_accepted':[],
+                      'epoch_dropoff_delay':[],
+                      'epoch_requests_seen':[],
+                      'epoch_driver_0_empty':[],
+                      'epoch_requests_accepted_profit':[]}
+
+    all_profits = []
     while True:
         # Get new requests
         try:
             current_requests = next(request_generator)
-            print("Current time: {}".format(envt.current_time))
+            print("Current time: {} or {} on DAY {}".format(envt.current_time,datetime.timedelta(seconds=envt.current_time),DAY))
             print("Number of new requests: {}".format(len(current_requests)))
         except StopIteration:
             break
@@ -68,6 +138,10 @@ def run_epoch(envt,
             rewards.append(reward)
             total_value_generated += reward
         print("Reward for epoch: {}".format(sum(rewards)))
+
+        profits = get_profit_distribution(scored_final_actions)
+        all_profits+=profits
+        print(all_profits)
 
         # Update
         if (is_training):
@@ -95,15 +169,34 @@ def run_epoch(envt,
         avg_capacity = sum([agent.path.current_capacity for agent in agents]) / envt.NUM_AGENTS
         value_function.add_to_logs('avg_capacity_day_{}'.format(envt.num_days_trained), avg_capacity, envt.current_time)
 
+        epoch_dictionary = {}
+        for agent in agents:
+            agent_dictionary = get_statistics_next_epoch(agent,envt)
+            if epoch_dictionary == {}:
+                epoch_dictionary = agent_dictionary
+            else:
+                for key in agent_dictionary:
+                    epoch_dictionary[key]+=agent_dictionary[key]
+
         # Simulate the passing of time
         envt.simulate_motion(agents, current_requests)
         num_total_requests += len(current_requests)
+
+        ret_dictionary['epoch_requests_completed'].append(epoch_dictionary['requests_served'])
+        ret_dictionary['epoch_dropoff_delay'].append(epoch_dictionary['total_delivery_delay'])
+        ret_dictionary['epoch_requests_accepted'].append(sum(rewards))
+        ret_dictionary['epoch_requests_seen'].append(len(current_requests))
+        ret_dictionary['epoch_driver_0_empty'].append(agents[0].path.is_empty())
+        ret_dictionary['epoch_requests_accepted_profit'].append(sum(profits))
 
     # Printing statistics for current epoch
     print('Number of requests accepted: {}'.format(total_value_generated))
     print('Number of requests seen: {}'.format(num_total_requests))
 
-    return total_value_generated
+
+    ret_dictionary['total_requests_accepted'] = total_value_generated
+    
+    return ret_dictionary
 
 
 if __name__ == '__main__':
@@ -112,7 +205,7 @@ if __name__ == '__main__':
     # Parse command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--capacity', type=int, default=4)
-    parser.add_argument('-n', '--numagents', type=int, default=10)
+    parser.add_argument('-n', '--numagents', type=int, default=1000)
     parser.add_argument('-d', '--pickupdelay', type=int, default=300)
     parser.add_argument('-t', '--decisioninterval', type=int, default=60)
     parser.add_argument('-m', '--modellocation', type=str)
@@ -125,9 +218,9 @@ if __name__ == '__main__':
     START_HOUR: int = 0
     END_HOUR: int = 24
     NUM_EPOCHS: int = 1
-    TRAINING_DAYS: List[int] = list(range(3, 4)) #(3,10)
+    TRAINING_DAYS: List[int] = list(range(3, 10)) 
     VALID_DAYS: List[int] = [2]
-    TEST_DAYS: List[int] = list(range(11, 12)) # (11,16)
+    TEST_DAYS: List[int] = list(range(11, 16)) 
     VALID_FREQ: int = 4
     SAVE_FREQ: int = VALID_FREQ
     LOG_DIR: str = '../logs/{}agent_{}capacity_{}delay_{}interval/'.format(args.numagents, args.capacity, args.pickupdelay, args.decisioninterval)
@@ -143,7 +236,8 @@ if __name__ == '__main__':
     max_test_score = 0
     for epoch_id in range(NUM_EPOCHS):
         for day in TRAINING_DAYS:
-            total_requests_served = run_epoch(envt, oracle, central_agent, value_function, day, is_training=True)
+            epoch_data = run_epoch(envt, oracle, central_agent, value_function, day, is_training=True)
+            total_requests_served = epoch_data['total_requests_accepted']
             print("\nDAY: {}, Requests: {}\n\n".format(day, total_requests_served))
             value_function.add_to_logs('requests_served', total_requests_served, envt.num_days_trained)
 
@@ -151,7 +245,7 @@ if __name__ == '__main__':
             if (envt.num_days_trained % VALID_FREQ == VALID_FREQ - 1):
                 test_score = 0
                 for day in VALID_DAYS:
-                    total_requests_served = run_epoch(envt, oracle, central_agent, value_function, day, is_training=False)
+                    total_requests_served = run_epoch(envt, oracle, central_agent, value_function, day, is_training=False)['total_requests_accepted']
                     print("\n(TEST) DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
                     test_score += total_requests_served
                 value_function.add_to_logs('validation_score', test_score, envt.num_days_trained)
@@ -172,8 +266,10 @@ if __name__ == '__main__':
         initial_states = envt.get_initial_states(envt.NUM_AGENTS, is_training=False)
         agents = [LearningAgent(agent_idx, initial_state) for agent_idx, initial_state in enumerate(initial_states)]
 
-        total_requests_served = run_epoch(envt, oracle, central_agent, value_function, day, is_training=False, agents_predefined=agents)
+        epoch_data = run_epoch(envt, oracle, central_agent, value_function, day, is_training=False, agents_predefined=agents)
+        total_requests_served = epoch_data['total_requests_accepted']
         print("\n(TEST) DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
+        pickle.dump(epoch_data,open("../logs/epoch_data/day_{}_epoch_data.pkl".format(day),"wb"))
         value_function.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)
 
         # total_requests_served = run_epoch(envt, oracle, central_agent, value_function_baseline, day, is_training=False, agents_predefined=agents)

@@ -57,6 +57,35 @@ class ValueFunction(ABC):
     def remember(self, experience: Experience):
         raise NotImplementedError
 
+class Driver0(ValueFunction):
+    """docstring for RewardPlusDelay"""
+
+    def __init__(self, DELAY_COEFFICIENT: float=1e-3, log_dir='../logs/'):
+        super(RewardPlusDelay, self).__init__(log_dir)
+        self.DELAY_COEFFICIENT = DELAY_COEFFICIENT
+
+    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
+        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
+        for experience in experiences:
+            for feasible_actions in experience.feasible_actions_all_agents:
+                scored_actions: List[Tuple[Action, float]] = []
+                for action in feasible_actions:
+                    assert action.new_path
+
+                    immediate_reward = sum([request.value for request in action.requests])
+                    remaining_delay_bonus = self.DELAY_COEFFICIENT * action.new_path.total_delay
+                    score = immediate_reward + remaining_delay_bonus
+
+                    scored_actions.append((action, score))
+                scored_actions_all_agents.append(scored_actions)
+
+        return scored_actions_all_agents
+
+    def update(self, *args, **kwargs):
+        pass
+
+    def remember(self, *args, **kwargs):
+        pass
 
 class RewardPlusDelay(ValueFunction):
     """docstring for RewardPlusDelay"""
