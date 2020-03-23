@@ -2,7 +2,7 @@ from Environment import NYEnvironment
 from CentralAgent import CentralAgent
 from LearningAgent import LearningAgent
 from Oracle import Oracle
-from ValueFunction import PathBasedNN, RewardPlusDelay, NeuralNetworkBased
+from ValueFunction import PathBasedNN, RewardPlusDelay, NeuralNetworkBased, Driver0, ClosestDriver, FurthestDriver
 from Experience import Experience
 from Request import Request
 
@@ -15,6 +15,7 @@ from multiprocessing.pool import Pool
 import argparse
 import pickle
 import datetime
+import numpy as np
 
 def get_statistics_next_epoch(agent,envt):
     ret_dictionary = {'total_delivery_delay':0,'requests_served':0}
@@ -141,7 +142,6 @@ def run_epoch(envt,
 
         profits = get_profit_distribution(scored_final_actions)
         all_profits+=profits
-        print(all_profits)
 
         # Update
         if (is_training):
@@ -189,6 +189,9 @@ def run_epoch(envt,
         ret_dictionary['epoch_driver_0_empty'].append(agents[0].path.is_empty())
         ret_dictionary['epoch_requests_accepted_profit'].append(sum(profits))
 
+        if print_verbose == 1:
+            print("Requests served {}".format(np.sum(ret_dictionary["epoch_requests_completed"])))
+
     # Printing statistics for current epoch
     print('Number of requests accepted: {}'.format(total_value_generated))
     print('Number of requests seen: {}'.format(num_total_requests))
@@ -205,7 +208,7 @@ if __name__ == '__main__':
     # Parse command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--capacity', type=int, default=4)
-    parser.add_argument('-n', '--numagents', type=int, default=1000)
+    parser.add_argument('-n', '--numagents', type=int, default=100)
     parser.add_argument('-d', '--pickupdelay', type=int, default=300)
     parser.add_argument('-t', '--decisioninterval', type=int, default=60)
     parser.add_argument('-m', '--modellocation', type=str)
@@ -214,28 +217,48 @@ if __name__ == '__main__':
     Request.MAX_PICKUP_DELAY = args.pickupdelay
     Request.MAX_DROPOFF_DELAY = 2 * args.pickupdelay
 
+    numagents = int(input("How many agents: "))
+    type_of_value_function = int(input("1: NN based, 2: Reward based, 3: Driver 0, 4: Closest Driver , 5: Furthest Driver "))
+    num_training_days = int(input("How many training days (default is 7): "))
+    num_testing_days = int(input("How many testing days (default is 5): "))
+    write_to_file = int(input("Write output to a file? 1 for yes, 0 for no "))
+    print_verbose = int(input("Print verbose? 1 for yes, 0 for no "))
+
+    input_settings = {'numagents':numagents, 'type_value':type_of_value_function,'num_training':num_training_days,'num_testing':num_testing_days,'write_to_file':write_to_file}
+    
+
     # Constants
     START_HOUR: int = 0
     END_HOUR: int = 24
     NUM_EPOCHS: int = 1
-    TRAINING_DAYS: List[int] = list(range(3, 10)) 
+    TRAINING_DAYS: List[int] = list(range(3, 3+num_training_days)) 
     VALID_DAYS: List[int] = [2]
-    TEST_DAYS: List[int] = list(range(11, 16)) 
+    TEST_DAYS: List[int] = list(range(11, 11+num_testing_days)) 
     VALID_FREQ: int = 4
     SAVE_FREQ: int = VALID_FREQ
-    LOG_DIR: str = '../logs/{}agent_{}capacity_{}delay_{}interval/'.format(args.numagents, args.capacity, args.pickupdelay, args.decisioninterval)
+    LOG_DIR: str = '../logs/{}agent_{}capacity_{}delay_{}interval/'.format(numagents, args.capacity, args.pickupdelay, args.decisioninterval)
 
     # Initialising components
     # TODO: Save start hour not start epoch
-    envt = NYEnvironment(args.numagents, START_EPOCH=START_HOUR * 3600, STOP_EPOCH=END_HOUR * 3600, MAX_CAPACITY=args.capacity, EPOCH_LENGTH=args.decisioninterval)
+    envt = NYEnvironment(numagents, START_EPOCH=START_HOUR * 3600, STOP_EPOCH=END_HOUR * 3600, MAX_CAPACITY=args.capacity, EPOCH_LENGTH=args.decisioninterval)
     oracle = Oracle(envt)
     central_agent = CentralAgent(envt)
-    # value_function = PathBasedNN(envt, log_dir=LOG_DIR, load_model_loc=args.modellocation)
-    value_function = RewardPlusDelay(DELAY_COEFFICIENT=1e-7, log_dir=LOG_DIR)
+
+    if type_of_value_function == 1:
+        value_function = PathBasedNN(envt, log_dir=LOG_DIR, load_model_loc=args.modellocation)
+    elif type_of_value_function == 2:
+        value_function = RewardPlusDelay(DELAY_COEFFICIENT=1e-7, log_dir=LOG_DIR)
+    elif type_of_value_function == 3:
+        value_function = Driver0()
+    elif type_of_value_function == 4:
+        value_function = ClosestDriver(envt)
+    elif type_of_value_function == 5:
+        value_function = FurthestDriver(envt)
 
     max_test_score = 0
     for epoch_id in range(NUM_EPOCHS):
         for day in TRAINING_DAYS:
+            print("Input settings {}".format(input_settings))
             epoch_data = run_epoch(envt, oracle, central_agent, value_function, day, is_training=True)
             total_requests_served = epoch_data['total_requests_accepted']
             print("\nDAY: {}, Requests: {}\n\n".format(day, total_requests_served))
@@ -253,7 +276,7 @@ if __name__ == '__main__':
                 # TODO: Save results better
                 if (isinstance(value_function, NeuralNetworkBased)):
                     if (test_score > max_test_score or (envt.num_days_trained % SAVE_FREQ) == (SAVE_FREQ - 1)):
-                        value_function.model.save('../models/{}_{}agent_{}capacity_{}delay_{}interval_{}_{}.h5'.format(type(value_function).__name__, args.numagents, args.capacity, args.pickupdelay, args.decisioninterval, envt.num_days_trained, test_score))
+                        value_function.model.save('../models/{}_{}agent_{}capacity_{}delay_{}interval_{}_{}.h5'.format(type(value_function).__name__, numagents, args.capacity, args.pickupdelay, args.decisioninterval, envt.num_days_trained, test_score))
                         max_test_score = test_score if test_score > max_test_score else max_test_score
 
             envt.num_days_trained += 1
@@ -263,13 +286,15 @@ if __name__ == '__main__':
 
     for day in TEST_DAYS:
         # Initialising agents
+        print("Input settings {}".format(input_settings))
         initial_states = envt.get_initial_states(envt.NUM_AGENTS, is_training=False)
         agents = [LearningAgent(agent_idx, initial_state) for agent_idx, initial_state in enumerate(initial_states)]
 
         epoch_data = run_epoch(envt, oracle, central_agent, value_function, day, is_training=False, agents_predefined=agents)
         total_requests_served = epoch_data['total_requests_accepted']
         print("\n(TEST) DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
-        pickle.dump(epoch_data,open("../logs/epoch_data/day_{}_epoch_data.pkl".format(day),"wb"))
+        if write_to_file == 1:
+            pickle.dump(epoch_data,open("../logs/epoch_data/day_{}_epoch_data.pkl".format(day),"wb"))
         value_function.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)
 
         # total_requests_served = run_epoch(envt, oracle, central_agent, value_function_baseline, day, is_training=False, agents_predefined=agents)

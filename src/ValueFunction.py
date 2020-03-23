@@ -60,21 +60,21 @@ class ValueFunction(ABC):
 class Driver0(ValueFunction):
     """docstring for RewardPlusDelay"""
 
-    def __init__(self, DELAY_COEFFICIENT: float=1e-3, log_dir='../logs/'):
-        super(RewardPlusDelay, self).__init__(log_dir)
-        self.DELAY_COEFFICIENT = DELAY_COEFFICIENT
+    def __init__(self, log_dir='../logs/'):
+        super(Driver0, self).__init__(log_dir)
 
     def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
         scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
         for experience in experiences:
-            for feasible_actions in experience.feasible_actions_all_agents:
+            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
                 scored_actions: List[Tuple[Action, float]] = []
                 for action in feasible_actions:
                     assert action.new_path
 
-                    immediate_reward = sum([request.value for request in action.requests])
-                    remaining_delay_bonus = self.DELAY_COEFFICIENT * action.new_path.total_delay
-                    score = immediate_reward + remaining_delay_bonus
+                    if i == 0:
+                        score = sum([request.value for request in action.requests])
+                    else:
+                        score = 0
 
                     scored_actions.append((action, score))
                 scored_actions_all_agents.append(scored_actions)
@@ -86,6 +86,81 @@ class Driver0(ValueFunction):
 
     def remember(self, *args, **kwargs):
         pass
+    
+class ClosestDriver(ValueFunction):
+    """docstring for RewardPlusDelay"""
+
+    def __init__(self, envt,log_dir='../logs/'):
+        super(ClosestDriver, self).__init__(log_dir)
+        self.envt = envt
+
+    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
+        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
+        for experience in experiences:
+            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
+                scored_actions: List[Tuple[Action, float]] = []
+                for action in feasible_actions:
+                    assert action.new_path
+
+                    score = sum([request.value for request in action.requests])
+                    position = experience.agents[i].position.next_location
+                    all_positions = [request.pickup for request in action.requests] + [request.dropoff for request in action.requests]
+
+                    
+                    max_distance = max([0]+[self.envt.get_travel_time(position,j) for j in all_positions])
+
+                    if max_distance != 0:
+                        score/=max_distance
+                    elif score != 0:
+                        score = 10000000
+
+                    scored_actions.append((action, score))
+                scored_actions_all_agents.append(scored_actions)
+
+        return scored_actions_all_agents
+
+    def update(self, *args, **kwargs):
+        pass
+
+    def remember(self, *args, **kwargs):
+        pass
+
+class FurthestDriver(ValueFunction):
+    """docstring for RewardPlusDelay"""
+
+    def __init__(self, envt,log_dir='../logs/'):
+        super(FurthestDriver, self).__init__(log_dir)
+        self.envt = envt
+
+    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
+        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
+        for experience in experiences:
+            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
+                scored_actions: List[Tuple[Action, float]] = []
+                for action in feasible_actions:
+                    assert action.new_path
+
+                    score = sum([request.value for request in action.requests])
+                    score = min(score,1)
+                    
+                    position = experience.agents[i].position.next_location
+                    all_positions = [request.pickup for request in action.requests] + [request.dropoff for request in action.requests]
+
+                    
+                    max_distance = max([0]+[self.envt.get_travel_time(position,j) for j in all_positions])
+
+                    score*=max_distance                    
+                    scored_actions.append((action, score))
+                scored_actions_all_agents.append(scored_actions)
+
+        return scored_actions_all_agents
+
+    def update(self, *args, **kwargs):
+        pass
+
+    def remember(self, *args, **kwargs):
+        pass
+
 
 class RewardPlusDelay(ValueFunction):
     """docstring for RewardPlusDelay"""
