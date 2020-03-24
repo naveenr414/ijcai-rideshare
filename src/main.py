@@ -212,17 +212,33 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--pickupdelay', type=int, default=300)
     parser.add_argument('-t', '--decisioninterval', type=int, default=60)
     parser.add_argument('-m', '--modellocation', type=str)
+    parser.add_argument('-i','--usecommands',type=bool,default=False)
+    parser.add_argument('-v', '--valuefunction', type=int)
+    parser.add_argument('-tr', '--trainingdays', type=int)
+    parser.add_argument('-te', '--testingdays', type=int)
+    parser.add_argument('-w', '--writetofile', type=int)
+    parser.add_argument('-p', '--printverbose', type=int)
+
     args = parser.parse_args()
 
     Request.MAX_PICKUP_DELAY = args.pickupdelay
     Request.MAX_DROPOFF_DELAY = 2 * args.pickupdelay
 
-    numagents = int(input("How many agents: "))
-    type_of_value_function = int(input("1: NN based, 2: Reward based, 3: Driver 0, 4: Closest Driver , 5: Furthest Driver "))
-    num_training_days = int(input("How many training days (default is 7): "))
-    num_testing_days = int(input("How many testing days (default is 5): "))
-    write_to_file = int(input("Write output to a file? 1 for yes, 0 for no "))
-    print_verbose = int(input("Print verbose? 1 for yes, 0 for no "))
+    if not args.usecommands:
+        numagents = int(input("How many agents: "))
+        type_of_value_function = int(input("1: NN based, 2: Reward based, 3: Driver 0, 4: Closest Driver , 5: Furthest Driver "))
+        num_training_days = int(input("How many training days (default is 7): "))
+        num_testing_days = int(input("How many testing days (default is 5): "))
+        write_to_file = int(input("Write output to a file? 1 for yes, 0 for no "))
+        print_verbose = int(input("Print verbose? 1 for yes, 0 for no "))
+    else:
+        numagents = args.numagents
+        type_of_value_function = args.valuefunction
+        num_training_days = args.trainingdays
+        num_testing_days = args.testingdays
+        write_to_file = args.writetofile
+        print_verbose = args.printverbose
+        
 
     input_settings = {'numagents':numagents, 'type_value':type_of_value_function,'num_training':num_training_days,'num_testing':num_testing_days,'write_to_file':write_to_file}
     
@@ -294,7 +310,7 @@ if __name__ == '__main__':
         total_requests_served = epoch_data['total_requests_accepted']
         print("\n(TEST) DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
         if write_to_file == 1:
-            pickle.dump(epoch_data,open("../logs/epoch_data/day_{}_epoch_data.pkl".format(day),"wb"))
+            pickle.dump(epoch_data,open("../logs/epoch_data/day_{}_epoch_data_agents{}_value{}_training{}_testing{}.pkl".format(day,numagents,type_of_value_function,num_training_days,num_testing_days),"wb"))
         value_function.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)
 
         # total_requests_served = run_epoch(envt, oracle, central_agent, value_function_baseline, day, is_training=False, agents_predefined=agents)
