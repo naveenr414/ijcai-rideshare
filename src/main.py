@@ -16,6 +16,9 @@ import argparse
 import pickle
 import datetime
 import numpy as np
+import time
+
+start = time.time()
 
 def get_statistics_next_epoch(agent,envt):
     ret_dictionary = {'total_delivery_delay':0,'requests_served':0}
@@ -318,3 +321,5 @@ if __name__ == '__main__':
         # value_function_baseline.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)
 
         envt.num_days_trained += 1
+
+print("Took {} seconds".format(int(time.time()-start)))
