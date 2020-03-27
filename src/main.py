@@ -71,14 +71,21 @@ def profit_function(travel_time):
 
 def get_profit_distribution(scored_final_actions):
     profits = []
-    for action,_ in scored_final_actions:
+    agent_profits = []
+    for agent, (action,_) in enumerate(scored_final_actions):
         # Calculate the profit 
         for request in action.requests:
             dropoff = request.dropoff
             pickup = request.pickup
             travel_time = envt.get_travel_time(pickup,dropoff)
-            profits.append(profit_function(travel_time))
-    return profits
+            action_profit = profit_function(travel_time)
+
+            if action_profit!=0:
+                profits.append(action_profit)
+                agent_profits.append((agent,action_profit))
+            
+            
+    return profits,agent_profits
 
 def run_epoch(envt,
               oracle,
@@ -109,9 +116,11 @@ def run_epoch(envt,
                       'epoch_dropoff_delay':[],
                       'epoch_requests_seen':[],
                       'epoch_driver_0_empty':[],
-                      'epoch_requests_accepted_profit':[]}
+                      'epoch_requests_accepted_profit':[],
+                      'epoch_each_agent_profit':[],
+                      'epoch_locations_all':[],
+                      'epoch_locations_accepted':[],}
 
-    all_profits = []
     while True:
         # Get new requests
         try:
@@ -120,6 +129,8 @@ def run_epoch(envt,
             print("Number of new requests: {}".format(len(current_requests)))
         except StopIteration:
             break
+
+        ret_dictionary['epoch_locations_all'].append([i.pickup for i in current_requests])
 
         # Get feasible actions
         feasible_actions_all_agents = oracle.get_feasible_actions(agents, current_requests)
@@ -137,14 +148,15 @@ def run_epoch(envt,
 
         # Calculate reward for selected actions
         rewards = []
+        locations_served = []
         for action, _ in scored_final_actions:
-            reward = envt.get_reward(action)
+            reward = len(action.requests)
+            locations_served += [request.pickup for request in action.requests]
             rewards.append(reward)
             total_value_generated += reward
         print("Reward for epoch: {}".format(sum(rewards)))
 
-        profits = get_profit_distribution(scored_final_actions)
-        all_profits+=profits
+        profits,agent_profits = get_profit_distribution(scored_final_actions)
 
         # Update
         if (is_training):
@@ -191,9 +203,12 @@ def run_epoch(envt,
         ret_dictionary['epoch_requests_seen'].append(len(current_requests))
         ret_dictionary['epoch_driver_0_empty'].append(agents[0].path.is_empty())
         ret_dictionary['epoch_requests_accepted_profit'].append(sum(profits))
+        ret_dictionary['epoch_each_agent_profit'].append(agent_profits)
+        ret_dictionary['epoch_locations_accepted'].append(locations_served)
 
         if print_verbose == 1:
             print("Requests served {}".format(np.sum(ret_dictionary["epoch_requests_completed"])))
+            print("Requests accepted {}".format(sum(rewards)))
 
     # Printing statistics for current epoch
     print('Number of requests accepted: {}'.format(total_value_generated))
@@ -250,9 +265,9 @@ if __name__ == '__main__':
     START_HOUR: int = 0
     END_HOUR: int = 24
     NUM_EPOCHS: int = 1
-    TRAINING_DAYS: List[int] = list(range(3, 3+num_training_days)) 
+    TRAINING_DAYS: List[int] = list(range(3, 3+num_training_days)) #3,10
     VALID_DAYS: List[int] = [2]
-    TEST_DAYS: List[int] = list(range(11, 11+num_testing_days)) 
+    TEST_DAYS: List[int] = list(range(11, 11+num_testing_days)) #11,16
     VALID_FREQ: int = 4
     SAVE_FREQ: int = VALID_FREQ
     LOG_DIR: str = '../logs/{}agent_{}capacity_{}delay_{}interval/'.format(numagents, args.capacity, args.pickupdelay, args.decisioninterval)
