@@ -4,6 +4,7 @@ import seaborn as sns
 import pickle
 import glob
 from collections import Counter
+import pandas as pd 
 
 def running_mean(x, N):
     averages = np.convolve(x, np.ones((N,))/N, mode='valid')
@@ -114,6 +115,54 @@ def plot_lorenz(data,num_drivers):
     plt.plot(np.arange(X_lorenz.size)/(X_lorenz.size-1), X_lorenz, color='green')    
     plt.plot([0,1], [0,1], color='k')
 
+def plot_request_locations(data,accepted=False):
+    all_requests = []
+
+    if accepted:
+        for i in data['epoch_locations_accepted']:
+            all_requests+=i
+    else:
+        for i in data['epoch_locations_all']:
+            all_requests+=i
+
+    freq = Counter(all_requests)
+    rated_geo = pd.read_csv("../data/ny/zone_latlong.csv",header=None,names=['zone','longitude','latitude'])
+    new_col = [freq[i] if i in freq else 0 for i in range(len(rated_geo))]
+    rated_geo['score'] = new_col
+
+    min_lon = rated_geo['longitude'].min()
+    max_lon = rated_geo['longitude'].max()
+    min_lat = rated_geo['latitude'].min()
+    max_lat = rated_geo['latitude'].max()
+    max_score = rated_geo['score'].max()
+    min_score = rated_geo['score'].min()
+
+    mean = np.mean(rated_geo['latitude'])
+    sd = np.sqrt(np.sum(rated_geo['score']*(rated_geo['latitude']-mean)**2)/np.sum(rated_geo['score']))
+    print("Average lattitude {}".format(np.sum(rated_geo['score']*rated_geo['latitude'])/np.sum(rated_geo['score'])))
+    print("SD latitude {}".format(sd))
+    
+    bound = ((min_lon, max_lon, min_lat, max_lat))
+    map_bound = ((-74.05, -73.948, 40.682, 40.79))
+    # DO NOT MODIFY THIS BLOCK
+    # Read in the base map and setting up subplot
+    # DO NOT MODIFY THESE LINES
+    basemap = plt.imread('../data/ny/ny.jpg')    
+
+    plt.xlim(map_bound[0],map_bound[1])
+    plt.ylim(map_bound[2],map_bound[3])
+    # DO NOT MODIFY THESE LINES
+    # Create the hexbin plot
+    plt.scatter('longitude', 'latitude', data = rated_geo, s=rated_geo['score']**.5)
+    #hexbin = plt.hexbin('longitude', 'latitude', data = rated_geo, C=rated_geo['score'], gridsize = 200)
+    #plt.colorbar(hexbin, orientation='vertical').set_label('Inspection Count')
+    plt.xlabel('Longitude');
+    plt.ylabel('Latitude');
+    plt.title('Geospatial Density of Scores of Rated Restaurants');
+    # Setting aspect ratio and plotting the hexbins on top of the base map layer
+    # DO NOT MODIFY THIS LINE
+    plt.imshow(basemap, zorder=0, extent = map_bound, aspect= 'equal');
+
 def get_data(file_name=''):
     if not file_name:
         file_name = glob.glob("../logs/epoch_data/*")[0]
@@ -124,5 +173,6 @@ def get_data(file_name=''):
 value_function_1 = get_data("../logs/epoch_data/day_11_epoch_data_agents10_value1_training0_testing1.pkl")
 value_function_1_better = get_data("../logs/epoch_data/day_11_epoch_data_agents10_value1_training1_testing1.pkl")
 value_function_1_evenbetter = get_data("../logs/epoch_data/day_11_epoch_data_agents10_value1_training2_testing1.pkl")
+value_function_3 = get_data("../logs/epoch_data/day_11_epoch_data_agents10_value3_training0_testing1.pkl")
 value_function_4 = get_data("../logs/epoch_data/day_11_epoch_data_agents10_value4_training0_testing1.pkl")
 value_function_5 = get_data("../logs/epoch_data/day_11_epoch_data_agents10_value5_training0_testing1.pkl")
