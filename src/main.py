@@ -271,6 +271,7 @@ if __name__ == '__main__':
     VALID_FREQ: int = 4
     SAVE_FREQ: int = VALID_FREQ
     LOG_DIR: str = '../logs/{}agent_{}capacity_{}delay_{}interval/'.format(numagents, args.capacity, args.pickupdelay, args.decisioninterval)
+    MODEL_LOC: str = args.modellocation
 
     # Initialising components
     # TODO: Save start hour not start epoch
@@ -279,7 +280,7 @@ if __name__ == '__main__':
     central_agent = CentralAgent(envt)
 
     if type_of_value_function == 1:
-        value_function = PathBasedNN(envt, log_dir=LOG_DIR, load_model_loc=args.modellocation)
+        value_function = PathBasedNN(envt, log_dir=LOG_DIR, load_model_loc=MODEL_LOC)
     elif type_of_value_function == 2:
         value_function = RewardPlusDelay(DELAY_COEFFICIENT=1e-7, log_dir=LOG_DIR)
     elif type_of_value_function == 3:

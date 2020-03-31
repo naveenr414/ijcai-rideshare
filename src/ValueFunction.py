@@ -212,6 +212,7 @@ class NeuralNetworkBased(ValueFunction):
         self.BATCH_SIZE_FIT = BATCH_SIZE_FIT
         self.BATCH_SIZE_PREDICT = BATCH_SIZE_PREDICT
         self.TARGET_UPDATE_TAU = TARGET_UPDATE_TAU
+        self.load_model_loc = load_model_loc
 
         self._epoch_id = 0
 
@@ -463,10 +464,14 @@ class PathBasedNN(NeuralNetworkBased):
         num_requests_input = num_requests / self.envt.NUM_AGENTS
         num_other_agents_input = num_other_agents / self.envt.NUM_AGENTS
 
-        # Getting path based inputs
-        location_order: np.ndarray = np.zeros(shape=(self.envt.MAX_CAPACITY * 2 + 1,), dtype='int32')
-        delay_order: np.ndarray = np.zeros(shape=(self.envt.MAX_CAPACITY * 2 + 1, 1)) - 1
+        if self.load_model_loc == "../models/PathBasedNN_1000agent_4capacity_300delay_60interval_2_245261.h5":
+            location_order: np.ndarray = np.zeros(shape=(self.envt.MAX_CAPACITY * 5 + 1,), dtype='int32')
+            delay_order: np.ndarray = np.zeros(shape=(self.envt.MAX_CAPACITY * 5 + 1, 1)) - 1
 
+        else: # Getting path based inputs
+            location_order: np.ndarray = np.zeros(shape=(self.envt.MAX_CAPACITY * 2 + 1,), dtype='int32')
+            delay_order: np.ndarray = np.zeros(shape=(self.envt.MAX_CAPACITY * 2 + 1, 1)) - 1
+        
         # Adding current location
         location_order[0] = agent.position.next_location + 1
         delay_order[0] = 1
