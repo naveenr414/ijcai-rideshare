@@ -28,7 +28,8 @@ class Environment(metaclass=ABCMeta):
         self.START_EPOCH = START_EPOCH
         self.STOP_EPOCH = STOP_EPOCH
         self.DATA_DIR = DATA_DIR
-
+        
+        self.driver_utilities = [0 for i in range(NUM_AGENTS)]
         self.num_days_trained = 0
         self.recent_request_history: Deque[Request] = deque(maxlen=self.REQUEST_HISTORY_SIZE)
         self.current_time: float = 0.0

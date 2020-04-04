@@ -68,7 +68,7 @@ def plot_service_rates(data_list,labels):
     plt.bar(list(range(len(labels))),service_rates,tick_label=labels)
 
 def plot_service_rates_dict(data):
-    labels = [i for i in data]
+    labels = sorted([i for i in data])
     data_list = [data[i] for i in labels]
     plot_service_rates(data_list,labels)
 
@@ -84,7 +84,7 @@ def plot_percent_time_driving(data):
 
 def payment_by_driver(data,num_drivers,n=-1):
     if n == -1:
-        n = len(data)
+        n = len(data['epoch_each_agent_profit'])
     
     driver_pays = {}
     for i in range(num_drivers):
@@ -116,8 +116,27 @@ def plot_profit_over_time(data):
     plot_running_mean(y_values)
 
 def plot_gini_over_time(data,num_drivers):
-    y_values = [gini(data,num_drivers,n=i) for i in range(len(data['epoch_each_agent_profit']))]
-    plot_daily(y_values)
+    driver_pays = {}
+    for i in range(num_drivers):
+        driver_pays[i] = 0
+    gini_list = []
+    total_pay = 0
+    for q, i in enumerate(data['epoch_each_agent_profit']):
+        for j,l in i:
+            driver_pays[j]+=l
+            total_pay+=l
+        mu = total_pay/num_drivers
+        a = 0
+
+        driver_pays_list = list(driver_pays.values())
+        driver_pays_list = sorted(driver_pays_list)
+        
+        for j in range(num_drivers):
+            a+=j*driver_pays_list[j] - (num_drivers-1-j)*driver_pays_list[j]
+            
+        gini_list.append(2*a/(2*num_drivers**2*mu))
+    
+    plot_daily(np.array(gini_list))
 
 def plot_most_common_requests(data,n=10):
     all_requests = []
@@ -307,18 +326,37 @@ def get_data(file_name=''):
 
     return day_0
 
-all_files = glob.glob("../logs/epoch_data/preliminary_equality/*.pkl")
+def KL(a, b):
+    a = np.asarray(a, dtype=np.float)
+    b = np.asarray(b, dtype=np.float)
+
+    return np.sum(np.where(a != 0, a * np.log(a / b), 0))
+
+
+"""all_files = glob.glob("../logs/epoch_data/preliminary_equality/*.pkl")
 all_pkl = {}
 for i in all_files:
     day = i.replace("../logs/epoch_data/preliminary_equality\\","").split("_")[1]
     value_num = i.replace("../logs/epoch_data/preliminary_equality\\","").split("value")[1][0]
     drivers = i.replace("../logs/epoch_data/preliminary_equality\\","").split("_")[4].replace("agents","")
-    all_pkl["{}_{}_{}".format(day,value_num,drivers)] = get_data(i)
+    if drivers == "1000":
+        all_pkl["{}_{}_{}".format(day,value_num,drivers)] = get_data(i)"""
 
-plt.title("Cosine similarity over time")
-for i in range(2,6):
-    for num_drivers in [100,1000]:
-        current_label = "{}_{}".format(i,num_drivers)
-        plot_cosine_similarity_over_time(all_pkl["11_{}_{}".format(i,num_drivers)])
+all_files = glob.glob("../logs/epoch_data/day_11_epoch_data_agents10*")
+all_pkl = {}
+for i in all_files:
+    value_num = i.replace("../logs/epoch_data/","").split("value")[1][0]
+    lam = ""
+    if "lambda" in i:
+        lam = i.split("lambda")[1].replace(".pkl","")
+        all_pkl["6_{}".format(lam)] = get_data(i)
+    else:
+        all_pkl[str(value_num)] = get_data(i)
+
+for i in all_pkl:
+    current_label = i
+    plot_lorenz(all_pkl[i],10)
 plt.legend()
+
 plt.show()
+

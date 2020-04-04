@@ -161,6 +161,53 @@ class FurthestDriver(ValueFunction):
     def remember(self, *args, **kwargs):
         pass
 
+class TwoSidedFairness(ValueFunction):
+    """docstring for RewardPlusDelay"""
+
+    def __init__(self, envt,lamb,log_dir='../logs/'):
+        super(TwoSidedFairness, self).__init__(log_dir)
+        self.envt = envt
+        self.lamb = lamb
+
+    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
+        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
+
+        # GET DRIVER UTILITIES 
+        driver_utilities = self.envt.driver_utilities 
+
+        max_customer_utility = 0
+        max_driver_utility = np.max(driver_utilities)
+        
+        for experience in experiences:
+            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
+                scored_actions: List[Tuple[Action, float]] = []
+                for action in feasible_actions:
+                    assert action.new_path
+                    position = experience.agents[i].position.next_location
+
+                    time_driven = 0
+                    for request in action.requests:
+                        time_driven+=self.envt.get_travel_time(request.pickup,request.dropoff)
+
+                    times_to_request = sum([self.envt.get_travel_time(position,request.pickup) for request in action.requests])
+                    previous_driver_utility = driver_utilities[i]
+
+                    if time_driven == 0:
+                        score = 0
+                    else:
+                        score = 1/(self.lamb *((len(experiences)-1)*(max_driver_utility-previous_driver_utility) + abs(max_driver_utility-(previous_driver_utility+time_driven-times_to_request))
+                                               ) + (1-self.lamb)*(times_to_request))
+
+                    scored_actions.append((action, score))
+                scored_actions_all_agents.append(scored_actions)
+
+        return scored_actions_all_agents
+
+    def update(self, *args, **kwargs):
+        pass
+
+    def remember(self, *args, **kwargs):
+        pass
 
 class RewardPlusDelay(ValueFunction):
     """docstring for RewardPlusDelay"""

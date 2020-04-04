@@ -2,7 +2,7 @@ from Environment import NYEnvironment
 from CentralAgent import CentralAgent
 from LearningAgent import LearningAgent
 from Oracle import Oracle
-from ValueFunction import PathBasedNN, RewardPlusDelay, NeuralNetworkBased, Driver0, ClosestDriver, FurthestDriver
+from ValueFunction import PathBasedNN, RewardPlusDelay, NeuralNetworkBased, Driver0, ClosestDriver, FurthestDriver, TwoSidedFairness
 from Experience import Experience
 from Request import Request
 
@@ -146,6 +146,15 @@ def run_epoch(envt,
         for agent_idx, (action, _) in enumerate(scored_final_actions):
             agents[agent_idx].path = deepcopy(action.new_path)
 
+            position = experience.agents[agent_idx].position.next_location
+            time_driven = 0
+            for request in action.requests:
+                time_driven+=envt.get_travel_time(request.pickup,request.dropoff)
+
+            time_to_request = sum([envt.get_travel_time(position,request.pickup) for request in action.requests])
+
+            envt.driver_utilities[agent_idx]+=(time_driven-time_to_request)
+
         # Calculate reward for selected actions
         rewards = []
         locations_served = []
@@ -154,6 +163,7 @@ def run_epoch(envt,
             locations_served += [request.pickup for request in action.requests]
             rewards.append(reward)
             total_value_generated += reward
+            
         print("Reward for epoch: {}".format(sum(rewards)))
 
         profits,agent_profits = get_profit_distribution(scored_final_actions)
@@ -236,6 +246,7 @@ if __name__ == '__main__':
     parser.add_argument('-te', '--testingdays', type=int)
     parser.add_argument('-w', '--writetofile', type=int)
     parser.add_argument('-p', '--printverbose', type=int)
+    parser.add_argument('-l','--lamb',type=float,default=1)
 
     args = parser.parse_args()
 
@@ -244,11 +255,12 @@ if __name__ == '__main__':
 
     if not args.usecommands:
         numagents = int(input("How many agents: "))
-        type_of_value_function = int(input("1: NN based, 2: Reward based, 3: Driver 0, 4: Closest Driver , 5: Furthest Driver "))
+        type_of_value_function = int(input("1: NN based, 2: Reward based, 3: Driver 0, 4: Closest Driver , 5: Furthest Driver, 6: Two Sided Fairness "))
         num_training_days = int(input("How many training days (default is 7): "))
         num_testing_days = int(input("How many testing days (default is 5): "))
         write_to_file = int(input("Write output to a file? 1 for yes, 0 for no "))
         print_verbose = int(input("Print verbose? 1 for yes, 0 for no "))
+        lamb = float(input("Value of lambda: "))
     else:
         numagents = args.numagents
         type_of_value_function = args.valuefunction
@@ -256,9 +268,10 @@ if __name__ == '__main__':
         num_testing_days = args.testingdays
         write_to_file = args.writetofile
         print_verbose = args.printverbose
+        lamb = args.lamb
         
 
-    input_settings = {'numagents':numagents, 'type_value':type_of_value_function,'num_training':num_training_days,'num_testing':num_testing_days,'write_to_file':write_to_file}
+    input_settings = {'numagents':numagents, 'type_value':type_of_value_function,'num_training':num_training_days,'num_testing':num_testing_days,'write_to_file':write_to_file,'lambda':lamb}
     
 
     # Constants
@@ -289,6 +302,8 @@ if __name__ == '__main__':
         value_function = ClosestDriver(envt)
     elif type_of_value_function == 5:
         value_function = FurthestDriver(envt)
+    elif type_of_value_function == 6:
+        value_function = TwoSidedFairness(envt,lamb)
 
     max_test_score = 0
     for epoch_id in range(NUM_EPOCHS):
@@ -315,6 +330,8 @@ if __name__ == '__main__':
                         max_test_score = test_score if test_score > max_test_score else max_test_score
 
             envt.num_days_trained += 1
+            if type_of_value_function == 1:
+                value_function.model.save('../models/{}_{}.h5'.format(numagents,  envt.num_days_trained))
 
     # CHECK TEST SCORE
     # value_function_baseline = RewardPlusDelay(DELAY_COEFFICIENT=1e-7, log_dir=LOG_DIR)
@@ -329,7 +346,7 @@ if __name__ == '__main__':
         total_requests_served = epoch_data['total_requests_accepted']
         print("\n(TEST) DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
         if write_to_file == 1:
-            pickle.dump(epoch_data,open("../logs/epoch_data/day_{}_epoch_data_agents{}_value{}_training{}_testing{}.pkl".format(day,numagents,type_of_value_function,num_training_days,num_testing_days),"wb"))
+            pickle.dump(epoch_data,open("../logs/epoch_data/day_{}_epoch_data_agents{}_value{}_training{}_testing{}_lambda{}.pkl".format(day,numagents,type_of_value_function,num_training_days,num_testing_days,lamb),"wb"))
         value_function.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)
 
         # total_requests_served = run_epoch(envt, oracle, central_agent, value_function_baseline, day, is_training=False, agents_predefined=agents)
