@@ -192,12 +192,12 @@ class TwoSidedFairness(ValueFunction):
                     times_to_request = sum([self.envt.get_travel_time(position,request.pickup) for request in action.requests])
                     previous_driver_utility = driver_utilities[i]
 
-                    if time_driven == 0:
+                    if time_driven == 0 or times_to_request>300*len(action.requests):
                         score = 0
                     else:
-                        score = 1/(self.lamb *((len(experiences)-1)*(max_driver_utility-previous_driver_utility) + abs(max_driver_utility-(previous_driver_utility+time_driven-times_to_request))
+                        score = 1000/(self.lamb *((len(experiences)-1)*(max_driver_utility-previous_driver_utility) + abs(max_driver_utility-(previous_driver_utility+time_driven-times_to_request))
                                                ) + (1-self.lamb)*(times_to_request))
-
+                    
                     scored_actions.append((action, score))
                 scored_actions_all_agents.append(scored_actions)
 

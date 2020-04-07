@@ -153,7 +153,7 @@ def run_epoch(envt,
 
             time_to_request = sum([envt.get_travel_time(position,request.pickup) for request in action.requests])
 
-            envt.driver_utilities[agent_idx]+=(time_driven-time_to_request)
+            envt.driver_utilities[agent_idx]+=max((time_driven-time_to_request),0)
 
         # Calculate reward for selected actions
         rewards = []

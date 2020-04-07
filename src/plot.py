@@ -233,8 +233,6 @@ def plot_request_locations(data,accepted=False):
 
     mean = np.mean(rated_geo['latitude'])
     sd = np.sqrt(np.sum(rated_geo['score']*(rated_geo['latitude']-mean)**2)/np.sum(rated_geo['score']))
-    print("Average lattitude {}".format(np.sum(rated_geo['score']*rated_geo['latitude'])/np.sum(rated_geo['score'])))
-    print("SD latitude {}".format(sd))
     
     bound = ((min_lon, max_lon, min_lat, max_lat))
     map_bound = ((-74.05, -73.948, 40.682, 40.79))
@@ -330,33 +328,34 @@ def KL(a, b):
     a = np.asarray(a, dtype=np.float)
     b = np.asarray(b, dtype=np.float)
 
-    return np.sum(np.where(a != 0, a * np.log(a / b), 0))
+    return np.sum(np.where(a*b != 0, a * np.log(a / b), 0))
+
+def get_KL_divergence(data):
+    all_requests = histogram_of_locations(data)
+    accepted = histogram_of_locations(data,accepted=True)
+    return KL(all_requests,accepted)
 
 
-"""all_files = glob.glob("../logs/epoch_data/preliminary_equality/*.pkl")
+all_files = glob.glob("../logs/epoch_data/preliminary_equality/*.pkl")
 all_pkl = {}
 for i in all_files:
     day = i.replace("../logs/epoch_data/preliminary_equality\\","").split("_")[1]
     value_num = i.replace("../logs/epoch_data/preliminary_equality\\","").split("value")[1][0]
     drivers = i.replace("../logs/epoch_data/preliminary_equality\\","").split("_")[4].replace("agents","")
     if drivers == "1000":
-        all_pkl["{}_{}_{}".format(day,value_num,drivers)] = get_data(i)"""
-
-all_files = glob.glob("../logs/epoch_data/day_11_epoch_data_agents10*")
-all_pkl = {}
-for i in all_files:
-    value_num = i.replace("../logs/epoch_data/","").split("value")[1][0]
-    lam = ""
-    if "lambda" in i:
-        lam = i.split("lambda")[1].replace(".pkl","")
-        all_pkl["6_{}".format(lam)] = get_data(i)
-    else:
-        all_pkl[str(value_num)] = get_data(i)
+        if "lambda" in i:
+            lamb = i.split("lambda")[1].replace(".pkl","")
+            all_pkl["{}_{}_{}_{}".format(day,value_num,drivers,lamb)] = get_data(i)
+        elif "model" in i:
+            model = i.replace("../logs/epoch_data/preliminary_equality\\","").split("model")[1][0]
+            all_pkl["{}_{}_{}_{}".format(day,value_num,drivers,model)] = get_data(i)
+        else:
+            all_pkl["{}_{}_{}".format(day,value_num,drivers)] = get_data(i)
 
 for i in all_pkl:
     current_label = i
-    plot_lorenz(all_pkl[i],10)
-plt.legend()
+    print(current_label,get_KL_divergence(all_pkl[i]))
+#plt.legend()
 
-plt.show()
+#plt.show()
 
