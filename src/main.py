@@ -2,7 +2,7 @@ from Environment import NYEnvironment
 from CentralAgent import CentralAgent
 from LearningAgent import LearningAgent
 from Oracle import Oracle
-from ValueFunction import PathBasedNN, RewardPlusDelay, NeuralNetworkBased, Driver0, ClosestDriver, FurthestDriver, TwoSidedFairness
+from ValueFunction import PathBasedNN, RewardPlusDelay, NeuralNetworkBased, Driver0, ClosestDriver, FurthestDriver, TwoSidedFairness, ProfitPlusEntropy
 from Experience import Experience
 from Request import Request
 
@@ -166,7 +166,10 @@ def run_epoch(envt,
             
         print("Reward for epoch: {}".format(sum(rewards)))
 
-        profits,agent_profits = get_profit_distribution(scored_final_actions)
+        profits,agent_profits = get_profit_distribution(scored_final_actions)            
+
+        for i,j in agent_profits:
+            envt.driver_profits[i]+=j
 
         # Update
         if (is_training):
@@ -255,7 +258,7 @@ if __name__ == '__main__':
 
     if not args.usecommands:
         numagents = int(input("How many agents: "))
-        type_of_value_function = int(input("1: NN based, 2: Reward based, 3: Driver 0, 4: Closest Driver , 5: Furthest Driver, 6: Two Sided Fairness "))
+        type_of_value_function = int(input("1: NN based, 2: Reward based, 3: Driver 0, 4: Closest Driver , 5: Furthest Driver, 6: Two Sided Fairness, 7: Profit + Entropy w/o Deep Learning "))
         num_training_days = int(input("How many training days (default is 7): "))
         num_testing_days = int(input("How many testing days (default is 5): "))
         write_to_file = int(input("Write output to a file? 1 for yes, 0 for no "))
@@ -304,6 +307,8 @@ if __name__ == '__main__':
         value_function = FurthestDriver(envt)
     elif type_of_value_function == 6:
         value_function = TwoSidedFairness(envt,lamb)
+    elif type_of_value_function == 7:
+        value_function = ProfitPlusEntropy(envt,lamb)
 
     max_test_score = 0
     for epoch_id in range(NUM_EPOCHS):

@@ -240,6 +240,61 @@ class RewardPlusDelay(ValueFunction):
         pass
 
 
+class ProfitPlusEntropy(ValueFunction):
+    """docstring for RewardPlusDelay"""
+
+    def __init__(self, envt,lamb, log_dir='../logs/'):
+        super(ProfitPlusEntropy, self).__init__(log_dir)
+        self.lamb = lamb
+        self.envt = envt
+
+    def profit_function(self,travel_time):
+        minutes_driven = travel_time/60
+        return round(minutes_driven+5,2)
+
+    def predicted_change(self,yn,ybar,R,N):
+            return np.log((ybar+R/N)/ybar * ((yn+R)/yn)**(-1/N))
+
+    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
+        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
+        for experience in experiences:
+            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
+                scored_actions: List[Tuple[Action, float]] = []
+                for action in feasible_actions:
+                    assert action.new_path
+
+                    profit = 0
+
+                    for request in action.requests:
+                        dropoff = request.dropoff
+                        pickup = request.pickup
+                        travel_time = self.envt.get_travel_time(pickup,dropoff)
+                        action_profit = self.profit_function(travel_time)
+                        profit+=action_profit
+
+                    yn = self.envt.driver_profits[i]
+                    if yn == 0:
+                        yn = 10**-6
+                    ybar = np.mean(self.envt.driver_profits)
+                    entropy = self.predicted_change(yn,ybar,profit,len(self.envt.driver_profits))
+
+                    if ybar == 0:
+                        score = profit
+                    else:
+                        score = profit - self.lamb * entropy
+
+                    scored_actions.append((action, score))
+                scored_actions_all_agents.append(scored_actions)
+
+        return scored_actions_all_agents
+
+    def update(self, *args, **kwargs):
+        pass
+
+    def remember(self, *args, **kwargs):
+        pass
+
+
 class ImmediateReward(RewardPlusDelay):
     """docstring for ImmediateReward"""
 
@@ -282,6 +337,7 @@ class NeuralNetworkBased(ValueFunction):
         # Define soft-update function for target_model_update
         self.update_target_model = self._soft_update_function(self.target_model, self.model)
 
+    # Essentially weighted average between weights 
     def _soft_update_function(self, target_model: Model, source_model: Model) -> keras_function:
         target_weights = target_model.trainable_weights
         source_weights = source_model.trainable_weights
@@ -404,6 +460,7 @@ class NeuralNetworkBased(ValueFunction):
 
     def update(self, central_agent: CentralAgent, num_samples: int = 3):
         # Check if replay buffer has enough samples for an update
+        # Epochs we need
         num_min_train_samples = int(5e5 / self.envt.NUM_AGENTS)
         if (num_min_train_samples > len(self.replay_buffer)):
             return
@@ -425,6 +482,7 @@ class NeuralNetworkBased(ValueFunction):
 
             # GET TD-TARGET
             # Score experiences
+            # So now we have, for each agent, a list of actions with their score, and we'll run an ILP over this
             scored_actions_all_agents = self.get_value([experience], network=self.target_model)  # type: ignore
 
             # Run ILP on these experiences to get expected value at next time step
@@ -435,6 +493,10 @@ class NeuralNetworkBased(ValueFunction):
 
             supervised_targets = np.array(value_next_state).reshape((-1, 1))
 
+            # So we want to predict, from "action_inputs_all_agents", predict the "supervised_targets"
+            # Supervised targets is the values chosen, which is from scores + ILP
+            # Action_inputs_all_agents = List of all experiences
+            # Why is this helpful
             # UPDATE NN BASED ON TD-TARGET
             action_inputs_all_agents, _ = self._format_experiences([experience], is_current=True)
             history = self.model.fit(action_inputs_all_agents, supervised_targets, batch_size=self.BATCH_SIZE_FIT, sample_weight=weights)

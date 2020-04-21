@@ -7,7 +7,10 @@ from collections import Counter
 import pandas as pd
 import glob
 from scipy.special import kl_div
-from scipy.spatial.distance import cosine 
+from scipy.spatial.distance import cosine
+
+import matplotlib as mpl
+mpl.rcParams['axes.prop_cycle'] = mpl.cycler(color=['#377eb8', '#ff7f00', '#4daf4a','#f781bf', '#a65628', '#984ea3','#999999', '#e41a1c', '#dede00']) 
 
 current_label = ""
 
@@ -67,6 +70,10 @@ def plot_service_rates(data_list,labels):
     print(service_rates)
     plt.bar(list(range(len(labels))),service_rates,tick_label=labels)
 
+def plot_KL_divergences(data_list):
+    plt.bar(list(range(len(data_list))),[get_KL_divergence(data_list[i]) for i in data_list],label=data_list.keys())
+        
+
 def plot_service_rates_dict(data):
     labels = sorted([i for i in data])
     data_list = [data[i] for i in labels]
@@ -108,6 +115,12 @@ def gini(data,num_drivers,n=-1):
 
     s =  a/(2*num_drivers**2 * mu)
     return s
+
+def entropy(data,num_drivers):
+    payment_driver = np.array(list((payment_by_driver(data,num_drivers).values())))
+    payment_driver+=10**-6
+    ybar = np.mean(payment_driver)
+    return -1/num_drivers * (np.sum(np.log(payment_driver/ybar)))
 
 def plot_profit_over_time(data):
     y_values = []
@@ -335,27 +348,24 @@ def get_KL_divergence(data):
     accepted = histogram_of_locations(data,accepted=True)
     return KL(all_requests,accepted)
 
+loc = "../logs/epoch_data/lambda+entropy"
 
-all_files = glob.glob("../logs/epoch_data/preliminary_equality/*.pkl")
+all_files = glob.glob(loc+"/*.pkl")
 all_pkl = {}
 for i in all_files:
-    day = i.replace("../logs/epoch_data/preliminary_equality\\","").split("_")[1]
-    value_num = i.replace("../logs/epoch_data/preliminary_equality\\","").split("value")[1][0]
-    drivers = i.replace("../logs/epoch_data/preliminary_equality\\","").split("_")[4].replace("agents","")
-    if drivers == "1000":
-        if "lambda" in i:
-            lamb = i.split("lambda")[1].replace(".pkl","")
-            all_pkl["{}_{}_{}_{}".format(day,value_num,drivers,lamb)] = get_data(i)
-        elif "model" in i:
-            model = i.replace("../logs/epoch_data/preliminary_equality\\","").split("model")[1][0]
-            all_pkl["{}_{}_{}_{}".format(day,value_num,drivers,model)] = get_data(i)
-        else:
-            all_pkl["{}_{}_{}".format(day,value_num,drivers)] = get_data(i)
+    day = i.replace(loc+"\\","").split("_")[1]
+    value_num = i.replace(loc+"\\","").split("value")[1][0]
+    drivers = i.replace(loc+"\\","").split("_")[4].replace("agents","")
+    lamb = i.replace(loc+"\\","").replace(".pkl","").split("_")[-1].replace("lambda","")
+    if value_num == "7":
+        name = "{}_{}_{}_{}".format(day,value_num,drivers,lamb)
+        all_pkl[name] = get_data(i)
+
 
 for i in all_pkl:
     current_label = i
-    print(current_label,get_KL_divergence(all_pkl[i]))
-#plt.legend()
+    plot_requests_accepted_over_time(all_pkl[i])
 
-#plt.show()
+plt.legend()
+plt.show()
 
