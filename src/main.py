@@ -258,7 +258,7 @@ if __name__ == '__main__':
 
     if not args.usecommands:
         numagents = int(input("How many agents: "))
-        type_of_value_function = int(input("1: NN based, 2: Reward based, 3: Driver 0, 4: Closest Driver , 5: Furthest Driver, 6: Two Sided Fairness, 7: Profit + Entropy w/o Deep Learning "))
+        type_of_value_function = int(input("1: NN based, 2: Reward based, 3: Driver 0, 4: Closest Driver , 5: Furthest Driver, 6: Two Sided Fairness, 7: Profit + Entropy w/o Deep Learning, 8: Profit + Entropy with Deep Learning "))
         num_training_days = int(input("How many training days (default is 7): "))
         num_testing_days = int(input("How many testing days (default is 5): "))
         write_to_file = int(input("Write output to a file? 1 for yes, 0 for no "))
@@ -291,7 +291,7 @@ if __name__ == '__main__':
 
     # Initialising components
     # TODO: Save start hour not start epoch
-    envt = NYEnvironment(numagents, START_EPOCH=START_HOUR * 3600, STOP_EPOCH=END_HOUR * 3600, MAX_CAPACITY=args.capacity, EPOCH_LENGTH=args.decisioninterval)
+    envt = NYEnvironment(type_of_value_function,lamb,numagents, START_EPOCH=START_HOUR * 3600, STOP_EPOCH=END_HOUR * 3600, MAX_CAPACITY=args.capacity, EPOCH_LENGTH=args.decisioninterval)
     oracle = Oracle(envt)
     central_agent = CentralAgent(envt)
 
@@ -309,6 +309,8 @@ if __name__ == '__main__':
         value_function = TwoSidedFairness(envt,lamb)
     elif type_of_value_function == 7:
         value_function = ProfitPlusEntropy(envt,lamb)
+    elif type_of_value_function == 8:
+        value_function = PathBasedNN(envt, log_dir=LOG_DIR, load_model_loc=MODEL_LOC)
 
     max_test_score = 0
     for epoch_id in range(NUM_EPOCHS):

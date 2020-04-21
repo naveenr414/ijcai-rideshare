@@ -116,6 +116,9 @@ def gini(data,num_drivers,n=-1):
     s =  a/(2*num_drivers**2 * mu)
     return s
 
+def total_profit(data):
+    return np.sum([sum([j[1] for j in i]) for i in data['epoch_each_agent_profit']])
+
 def entropy(data,num_drivers):
     payment_driver = np.array(list((payment_by_driver(data,num_drivers).values())))
     payment_driver+=10**-6
@@ -348,6 +351,13 @@ def get_KL_divergence(data):
     accepted = histogram_of_locations(data,accepted=True)
     return KL(all_requests,accepted)
 
+def plot_entropy_profit_pareto(data_list,num_drivers):
+    points = [(total_profit(data_list[i]),1/entropy(data_list[i],num_drivers)) for i in data_list]
+    plt.scatter([i[0] for i in points],[i[1] for i in points])
+
+    for i,name in enumerate(data_list):
+        plt.annotate(name,points[i])    
+
 loc = "../logs/epoch_data/lambda+entropy"
 
 all_files = glob.glob(loc+"/*.pkl")
@@ -364,8 +374,13 @@ for i in all_files:
 
 for i in all_pkl:
     current_label = i
-    plot_requests_accepted_over_time(all_pkl[i])
+    plot_lorenz(all_pkl[i],100)
+
+for i in all_pkl:
+    print(i,entropy(all_pkl[i],100))
 
 plt.legend()
 plt.show()
 
+plot_entropy_profit_pareto(all_pkl,100)
+plt.show()

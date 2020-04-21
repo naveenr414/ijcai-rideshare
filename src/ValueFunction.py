@@ -255,6 +255,26 @@ class ProfitPlusEntropy(ValueFunction):
     def predicted_change(self,yn,ybar,R,N):
             return np.log((ybar+R/N)/ybar * ((yn+R)/yn)**(-1/N))
 
+    def get_profit(self,action):
+        profit = 0
+
+        for request in action.requests:
+            dropoff = request.dropoff
+            pickup = request.pickup
+            travel_time = self.envt.get_travel_time(pickup,dropoff)
+            action_profit = self.profit_function(travel_time)
+            profit+=action_profit
+
+        return profit
+
+    def get_entropy(self,i,action,profit):
+        yn = self.envt.driver_profits[i]
+        if yn == 0:
+            yn = 10**-6
+        ybar = np.mean(self.envt.driver_profits)
+        entropy = self.predicted_change(yn,ybar,profit,len(self.envt.driver_profits))
+        return entropy
+
     def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
         scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
         for experience in experiences:
@@ -262,26 +282,13 @@ class ProfitPlusEntropy(ValueFunction):
                 scored_actions: List[Tuple[Action, float]] = []
                 for action in feasible_actions:
                     assert action.new_path
+                    profit = self.get_profit(action)
+                    entropy = self.get_entropy(i,action,profit)
 
-                    profit = 0
-
-                    for request in action.requests:
-                        dropoff = request.dropoff
-                        pickup = request.pickup
-                        travel_time = self.envt.get_travel_time(pickup,dropoff)
-                        action_profit = self.profit_function(travel_time)
-                        profit+=action_profit
-
-                    yn = self.envt.driver_profits[i]
-                    if yn == 0:
-                        yn = 10**-6
-                    ybar = np.mean(self.envt.driver_profits)
-                    entropy = self.predicted_change(yn,ybar,profit,len(self.envt.driver_profits))
-
-                    if ybar == 0:
-                        score = profit
+                    if np.isfinite(entropy):
+                        score = profit- self.lamb * entropy
                     else:
-                        score = profit - self.lamb * entropy
+                        score = profit 
 
                     scored_actions.append((action, score))
                 scored_actions_all_agents.append(scored_actions)
@@ -443,15 +450,19 @@ class NeuralNetworkBased(ValueFunction):
         expected_future_values_all_agents = self._reconstruct_NN_output(expected_future_values_all_agents, shape_info)
 
         # Get Q-values by adding associated rewards
-        def get_score(action: Action, value: float):
-            return self.envt.get_reward(action) + self.GAMMA * value
+        def get_score(action: Action, value: float, driver_num: int):
+            return self.envt.get_reward(action,driver_num) + self.GAMMA * value
 
+
+        driver_num = 0    
         feasible_actions_all_agents = [feasible_actions for experience in experiences for feasible_actions in experience.feasible_actions_all_agents]
 
         scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
         for expected_future_values, feasible_actions in zip(expected_future_values_all_agents, feasible_actions_all_agents):
-            scored_actions = [(action, get_score(action, value)) for action, value in zip(feasible_actions, expected_future_values)]
+            scored_actions = [(action, get_score(action, value,driver_num)) for action, value in zip(feasible_actions, expected_future_values)]
             scored_actions_all_agents.append(scored_actions)
+            driver_num+=1
+            driver_num%=self.envt.NUM_AGENTS
 
         return scored_actions_all_agents
 
