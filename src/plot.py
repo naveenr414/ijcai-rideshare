@@ -367,20 +367,11 @@ for i in all_files:
     value_num = i.replace(loc+"\\","").split("value")[1][0]
     drivers = i.replace(loc+"\\","").split("_")[4].replace("agents","")
     lamb = i.replace(loc+"\\","").replace(".pkl","").split("_")[-1].replace("lambda","")
-    if value_num == "7":
-        name = "{}_{}_{}_{}".format(day,value_num,drivers,lamb)
+    if value_num == "8":
+        name = str(lamb)
         all_pkl[name] = get_data(i)
 
 
-for i in all_pkl:
-    current_label = i
-    plot_lorenz(all_pkl[i],100)
-
-for i in all_pkl:
-    print(i,entropy(all_pkl[i],100))
-
-plt.legend()
-plt.show()
 
 plot_entropy_profit_pareto(all_pkl,100)
 plt.show()

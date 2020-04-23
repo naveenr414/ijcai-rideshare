@@ -185,6 +185,13 @@ class Environment(metaclass=ABCMeta):
         entropy = self.predicted_change(yn,ybar,profit,len(self.driver_profits))
         return entropy
 
+    def get_full_entropy(self):
+        driver_profits = np.array(self.driver_profits)+10**-6
+        if np.mean(driver_profits)!=0:
+            return -1/(len(self.driver_profits)) * np.sum(np.log(driver_profits/np.mean(driver_profits)))
+        else:
+            return 0
+
     def get_reward(self, action: Action,driver_num: int) -> float:
         """
         Return the reward to an agent for a given (feasible) action.
@@ -199,6 +206,7 @@ class Environment(metaclass=ABCMeta):
         elif self.value_number==8:
             profit = self.get_profit(action)
             entropy = self.get_entropy(driver_num,action,profit)
+            
             if np.isfinite(entropy):
                 return profit - self.lamb * entropy
             else:

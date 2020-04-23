@@ -222,6 +222,7 @@ def run_epoch(envt,
         if print_verbose == 1:
             print("Requests served {}".format(np.sum(ret_dictionary["epoch_requests_completed"])))
             print("Requests accepted {}".format(sum(rewards)))
+            print("Entropy {}".format(envt.get_full_entropy()))
 
     # Printing statistics for current epoch
     print('Number of requests accepted: {}'.format(total_value_generated))
@@ -342,6 +343,11 @@ if __name__ == '__main__':
 
     # CHECK TEST SCORE
     # value_function_baseline = RewardPlusDelay(DELAY_COEFFICIENT=1e-7, log_dir=LOG_DIR)
+
+    # Reset the driver utilities
+    envt.driver_utilities = [0 for i in range(numagents)]
+    envt.driver_profits = [0 for i in range(numagents)]
+
 
     for day in TEST_DAYS:
         # Initialising agents
