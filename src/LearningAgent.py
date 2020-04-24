@@ -19,6 +19,7 @@ class LearningAgent(object):
         self.id = agent_id
         self.position = AgentLocation(initial_location)
         self.path: Path = Path()
+        self.profit = 0
 
 
 class AgentLocation(object):

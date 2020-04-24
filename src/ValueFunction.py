@@ -366,17 +366,20 @@ class NeuralNetworkBased(ValueFunction):
     def _get_input_batch_next_state(self, experience: Experience) -> Dict[str, np.ndarray]:
         # Move agents to next states
         all_agents_post_actions = []
+        agent_num = 0
         for agent, feasible_actions in zip(experience.agents, experience.feasible_actions_all_agents):
             agents_post_actions = []
             for action in feasible_actions:
                 # Moving agent according to feasible action
                 agent_next_time = deepcopy(agent)
                 assert action.new_path
+                agent_next_time.profit=self.envt.get_profit(action)+self.envt.driver_profits[agent_num]
                 agent_next_time.path = deepcopy(action.new_path)
                 self.envt.simulate_motion([agent_next_time], rebalance=False)
 
                 agents_post_actions.append(agent_next_time)
             all_agents_post_actions.append(agents_post_actions)
+            agent_num+=1
 
         next_time = experience.time + self.envt.EPOCH_LENGTH
 
@@ -566,6 +569,9 @@ class PathBasedNN(NeuralNetworkBased):
         # Get embedding for number of requests
         num_requests_input = Input(shape=(1,), name='num_requests_input')
 
+        # Profit related Inputs
+        agent_profit_input = Input(shape=(1,),name='agent_profit_input')
+
         # Get Embedding for the entire thing
         state_embed = Concatenate()([path_embed, current_time_embed, other_agents_input, num_requests_input])
         state_embed = Dense(300, activation='elu', name='state_embed_1')(state_embed)
@@ -574,7 +580,7 @@ class PathBasedNN(NeuralNetworkBased):
         # Get predicted Value Function
         output = Dense(1, name='output')(state_embed)
 
-        model = Model(inputs=[path_location_input, delay_input, current_time_input, other_agents_input, num_requests_input], outputs=output)
+        model = Model(inputs=[path_location_input, delay_input, current_time_input, other_agents_input, num_requests_input,agent_profit_input], outputs=output)
 
         return model
 
@@ -583,7 +589,11 @@ class PathBasedNN(NeuralNetworkBased):
         current_time_input = (current_time - self.envt.START_EPOCH) / (self.envt.STOP_EPOCH - self.envt.START_EPOCH)
         num_requests_input = num_requests / self.envt.NUM_AGENTS
         num_other_agents_input = num_other_agents / self.envt.NUM_AGENTS
-
+        if np.mean(self.envt.driver_profits)!=0:
+            agent_profit_input = (agent.profit-np.mean(self.envt.driver_profits))/(np.std(self.envt.driver_profits))
+        else:
+            agent_profit_input = 0
+    
         if self.load_model_loc == "../models/PathBasedNN_1000agent_4capacity_300delay_60interval_2_245261.h5":
             location_order: np.ndarray = np.zeros(shape=(self.envt.MAX_CAPACITY * 5 + 1,), dtype='int32')
             delay_order: np.ndarray = np.zeros(shape=(self.envt.MAX_CAPACITY * 5 + 1, 1)) - 1
@@ -606,10 +616,10 @@ class PathBasedNN(NeuralNetworkBased):
             location_order[idx + 1] = location + 1
             delay_order[idx + 1, 0] = (deadline - visit_time) / Request.MAX_DROPOFF_DELAY  # normalising
 
-        return location_order, delay_order, current_time_input, num_requests_input, num_other_agents_input
+        return location_order, delay_order, current_time_input, num_requests_input, num_other_agents_input, agent_profit_input
 
     def _format_input_batch(self, all_agents_post_actions: List[List[LearningAgent]], current_time: float, num_requests: int) -> Dict[str, Any]:
-        input: Dict[str, List[Any]] = {"path_location_input": [], "delay_input": [], "current_time_input": [], "other_agents_input": [], "num_requests_input": []}
+        input: Dict[str, List[Any]] = {"path_location_input": [], "delay_input": [], "current_time_input": [], "other_agents_input": [], "num_requests_input": [],"agent_profit_input":[],}
 
         # Format all the other inputs
         for agent_post_actions in all_agents_post_actions:
@@ -618,6 +628,7 @@ class PathBasedNN(NeuralNetworkBased):
             path_location_input = []
             delay_input = []
             other_agents_input = []
+            agent_profit_input = []
 
             # Get number of surrounding agents
             current_agent = agent_post_actions[0]  # Assume first action is _null_ action
@@ -630,18 +641,20 @@ class PathBasedNN(NeuralNetworkBased):
 
             for agent in agent_post_actions:
                 # Get formatted output for the state
-                location_order, delay_order, current_time_scaled, num_requests_scaled, num_other_agents_scaled = self._format_input(agent, current_time, num_requests, num_other_agents)
+                location_order, delay_order, current_time_scaled, num_requests_scaled, num_other_agents_scaled, agent_profit = self._format_input(agent, current_time, num_requests, num_other_agents)
 
                 current_time_input.append(num_requests_scaled)
                 num_requests_input.append(num_requests)
                 path_location_input.append(location_order)
                 delay_input.append(delay_order)
                 other_agents_input.append(num_other_agents_scaled)
+                agent_profit_input.append(agent_profit)
 
             input["current_time_input"].append(current_time_input)
             input["num_requests_input"].append(num_requests_input)
             input["delay_input"].append(delay_input)
             input["path_location_input"].append(path_location_input)
             input["other_agents_input"].append(other_agents_input)
+            input["agent_profit_input"].append(agent_profit_input)
 
         return input

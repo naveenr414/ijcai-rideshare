@@ -365,13 +365,13 @@ all_pkl = {}
 for i in all_files:
     day = i.replace(loc+"\\","").split("_")[1]
     value_num = i.replace(loc+"\\","").split("value")[1][0]
+    training_days = i.replace(loc+"\\","").split("training")[1][0]
     drivers = i.replace(loc+"\\","").split("_")[4].replace("agents","")
     lamb = i.replace(loc+"\\","").replace(".pkl","").split("_")[-1].replace("lambda","")
-    if value_num == "8":
-        name = str(lamb)
+    name = str(lamb)+"_"+str(training_days)+"_"+value_num
+
+    if value_num == "2" or value_num == "8" and lamb == "500.0":
         all_pkl[name] = get_data(i)
 
-
-
-plot_entropy_profit_pareto(all_pkl,100)
+plot_KL_divergences(all_pkl)
 plt.show()
