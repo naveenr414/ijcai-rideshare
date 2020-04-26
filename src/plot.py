@@ -13,7 +13,6 @@ import matplotlib as mpl
 mpl.rcParams['axes.prop_cycle'] = mpl.cycler(color=['#377eb8', '#ff7f00', '#4daf4a','#f781bf', '#a65628', '#984ea3','#999999', '#e41a1c', '#dede00']) 
 
 current_label = ""
-current_color = ""
 
 def running_mean(x, N):
     averages = np.convolve(x, np.ones((N,))/N, mode='valid')
@@ -37,7 +36,7 @@ def plot_daily(y):
 
 def plot_running_mean(y):
     x = np.arange(0,24,1/60)
-    plt.plot(x,running_mean(y,30),label=current_label,color=current_color)
+    plt.plot(x,running_mean(y,30),label=current_label)
 
 def plot_requests_over_time(data):
     plot_running_mean(data['epoch_requests_seen'])
@@ -180,11 +179,10 @@ def plot_most_common_acceptance(data,n=10):
 def plot_lorenz(data,num_drivers):
     payment = payment_by_driver(data,num_drivers)
     X = np.array(sorted([i for i in payment.values()]))
-    
     X_lorenz = X.cumsum()/X.sum()
     X_lorenz = np.insert(X_lorenz, 0, 0)
     X_lorenz[0], X_lorenz[-1]
-    plt.plot(np.arange(X_lorenz.size)/(X_lorenz.size-1), X_lorenz, label=current_label,color=current_color)    
+    plt.plot(np.arange(X_lorenz.size)/(X_lorenz.size-1), X_lorenz, label=current_label)    
     plt.plot([0,1], [0,1],color='g')
 
 def histogram_of_locations(data,accepted=False):
@@ -368,14 +366,14 @@ names = {'day_11_epoch_data_agents1000_value6_training0_testing1_lambda0.5.pkl':
          'day_11_epoch_data_agents1000_value1_training0_testing1_model2.pkl':'NeurADP',
          'day_11_epoch_data_agents1000_value4_training0_testing1.pkl':'Nearest'}
 
-colors = {'Two Sided': 'b', 'NeurADP':'r','Nearest':'black'}
-
 for i in all_files:
     name = i.replace(loc+"\\","")
     if name in names:
         all_pkl[names[name]] = get_data(i)
 
-plot_KL_divergences(all_pkl)
+for i in all_pkl:
+    current_label  =i 
+    plot_lorenz(all_pkl[i],1000)
 
 plt.ylabel('KL Divergence', fontsize=24)
 plt.title('Rider inequalities',fontsize=24)

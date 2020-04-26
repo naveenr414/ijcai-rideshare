@@ -341,7 +341,7 @@ class PathBasedNN(NeuralNetworkBased):
 
         inputs = [path_location_input, delay_input, current_time_input,
                   other_agents_input, num_requests_input]
-        if Settings.has_parameter("profit_node") and Settings.get_parameter("profit_node"):
+        if Settings.has("profit_node") and Settings.get_value("profit_node"):
             inputs.append(agent_profit_input)
         
 
@@ -422,7 +422,7 @@ class PathBasedNN(NeuralNetworkBased):
             input["path_location_input"].append(path_location_input)
             input["other_agents_input"].append(other_agents_input)
 
-            if Settings.has_parameter("profit_node") and Settings.get_parameter("profit_node"):
+            if Settings.has_value("profit_node") and Settings.get_value("profit_node"):
                 input["agent_profit_input"].append(agent_profit_input)
 
         return input
@@ -492,7 +492,7 @@ def furthest_driver_score(envt,action,agent,driver_num):
 
 def two_sided_score(envt,action,agent,driver_num):
     position = agent.position.next_location
-    lamb = Settings.get_parameter("lambda")
+    lamb = Settings.get_value("lambda")
 
     time_driven = 0
     for request in action.requests:
@@ -513,7 +513,7 @@ def two_sided_score(envt,action,agent,driver_num):
 def lambda_entropy_score(envt,action,agent,driver_num):
     profit = Util.change_profit(envt,action)
     entropy = Util.change_entropy(envt,action,driver_num)
-    lamb = Settings.get_parameter("lambda")
+    lamb = Settings.get_value("lambda")
 
     if np.isfinite(entropy):
         score = profit - lamb * entropy
@@ -525,8 +525,8 @@ def lambda_entropy_score(envt,action,agent,driver_num):
 def immideate_reward_score(envt,action,agent,driver_num):
     immediate_reward = sum([request.value for request in action.requests])
     DELAY_COEFFICIENT = 0
-    if Settings.has_parameter("delay_coefficient"):
-        DELAY_COEFFICIENT = Settings.get_parameter("delay_coefficient")
+    if Settings.has_value("delay_coefficient"):
+        DELAY_COEFFICIENT = Settings.get_value("delay_coefficient")
     
     remaining_delay_bonus = DELAY_COEFFICIENT * action.new_path.total_delay
     score = immediate_reward + remaining_delay_bonus

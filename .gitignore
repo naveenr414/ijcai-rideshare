@@ -1,6 +1,6 @@
 *.pyc
 *.h5
-*.txt
+data/*.txt
 *.csv
 *SANKETS75FCL
 src/__pycache__

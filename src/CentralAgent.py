@@ -2,12 +2,15 @@ from Request import Request
 from Action import Action
 from LearningAgent import LearningAgent
 from Environment import Environment
+import Settings
+import Util 
 
 from typing import List, Dict, Tuple, Set, Any, Optional, Callable
 
 from docplex.mp.model import Model  # type: ignore
 from docplex.mp.linear import Var  # type: ignore
 from random import gauss, shuffle, randint, random
+import numpy as np
 
 
 class CentralAgent(object):
@@ -59,6 +62,7 @@ class CentralAgent(object):
         # For converting Action -> action_id and back
         action_to_id: Dict[Action, int] = {}
         id_to_action: Dict[int, Action] = {}
+        action_profit: Dict[id, float] = {}
         current_action_id = 0
 
         # For constraint 2
@@ -74,6 +78,7 @@ class CentralAgent(object):
                 if action not in action_to_id:
                     action_to_id[action] = current_action_id
                     id_to_action[current_action_id] = action
+                    action_profit[current_action_id] = Util.change_profit(self.envt,action)
                     current_action_id += 1
 
                     action_id = current_action_id - 1
@@ -107,6 +112,31 @@ class CentralAgent(object):
                 if (request in id_to_action[action_id].requests):
                     relevent_action_dicts.append(decision_variables[action_id])
             model.add_constraint(model.sum(variable for action_dict in relevent_action_dicts for variable, _ in action_dict.values()) <= 1)
+
+
+        # Create Constraint 3: The difference in max and min salary < 100 + 0.2*max
+        if Settings.has_value("add_constraints"):
+            previous_min = np.min(self.envt.driver_profits)
+            previous_max = np.max(self.envt.driver_profits)
+
+            print(previous_min,previous_max)
+            
+            for agent_idx in range(len(agent_action_choices)):
+                previous_profit = self.envt.driver_profits[agent_idx]
+                agent_specific_variables: List[Any] = []
+                new_profits = []
+
+                for action_id in decision_variables:
+                    action_dict = decision_variables[action_id]
+                    if agent_idx in action_dict:
+                        new_profit = action_profit[action_id]
+                        new_profits.append(new_profit)
+
+                if Settings.get_value("add_constraints") == "max":
+                    model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))>=(previous_max*0.5-200))
+                elif Settings.get_value("add_constraints") == "min":
+                    model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))<=(previous_min*2+200))
+
 
         # Create Objective
         score = model.sum((value + get_noise(variable)) * variable for action_dict in decision_variables.values() for (variable, value) in action_dict.values())
