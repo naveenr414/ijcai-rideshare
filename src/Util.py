@@ -14,11 +14,11 @@ def change_profit(envt,action):
 
 def change_entropy(envt,action,driver_num):
     y = envt.driver_profits[driver_num]
-    if previous_reward == 0:
-        previous_reward = 10**-6
+    if y == 0:
+        y = 10**-6
     ybar = np.mean(envt.driver_profits)
     N = len(envt.driver_profits)
-    R = get_profit_action(envt,action)   
+    R = change_profit(envt,action)   
     return np.log((ybar+R/N)/ybar * ((y+R)/y)**(-1/N))
     
 def get_entropy(envt):

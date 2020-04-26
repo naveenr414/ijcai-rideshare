@@ -175,10 +175,10 @@ class Environment(metaclass=ABCMeta):
         convention in literature.
         """
 
-        if Settings.get_parameter("value_function") == 8:
+        if Settings.get_value("value_num") == 8:
             profit = Util.change_profit(self,action)
             entropy = Util.change_entropy(self,action,driver_num)
-            lamb = Settings.get_parameter("lambda")
+            lamb = Settings.get_value("lambda")
 
             if np.isfinite(entropy):
                 return profit - lamb * entropy

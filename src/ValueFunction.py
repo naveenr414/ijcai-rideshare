@@ -124,7 +124,7 @@ class NeuralNetworkBased(ValueFunction):
                 # Moving agent according to feasible action
                 agent_next_time = deepcopy(agent)
                 assert action.new_path
-                agent_next_time.profit=self.envt.get_profit(action)+self.envt.driver_profits[agent_num]
+                agent_next_time.profit=Util.change_profit(self.envt,action)+self.envt.driver_profits[agent_num]
                 agent_next_time.path = deepcopy(action.new_path)
                 self.envt.simulate_motion([agent_next_time], rebalance=False)
 
@@ -341,7 +341,7 @@ class PathBasedNN(NeuralNetworkBased):
 
         inputs = [path_location_input, delay_input, current_time_input,
                   other_agents_input, num_requests_input]
-        if Settings.has("profit_node") and Settings.get_value("profit_node"):
+        if Settings.has_value("profit_node") and Settings.get_value("profit_node"):
             inputs.append(agent_profit_input)
         
 
@@ -471,7 +471,7 @@ def closest_driver_score(envt,action,agent,driver_num):
     if len(all_positions) == 0:
         return 0
     
-    max_distance = max([self.envt.get_travel_time(position,j) for j in all_positions])
+    max_distance = max([envt.get_travel_time(position,j) for j in all_positions])
 
     if max_distance != 0:
         score/=max_distance
@@ -486,10 +486,10 @@ def furthest_driver_score(envt,action,agent,driver_num):
     all_positions = [request.pickup for request in action.requests]
     all_positions += [request.dropoff for request in action.requests]
 
-    max_distance = max([self.envt.get_travel_time(position,j) for j in all_positions],default=0)
+    max_distance = max([envt.get_travel_time(position,j) for j in all_positions],default=0)
     score*=max_distance
     return score
-
+	
 def two_sided_score(envt,action,agent,driver_num):
     position = agent.position.next_location
     lamb = Settings.get_value("lambda")
@@ -533,10 +533,10 @@ def immideate_reward_score(envt,action,agent,driver_num):
     return score
 
 def num_to_value_function(envt,num):
+    model_loc = ""
+    if Settings.has_value("model_loc"):
+        model_loc = Settings.get_value("model_loc")
     if num == 1:
-        model_loc = ""
-        if Settings.has_value("model_loc"):
-            model_loc = Settings.get_value("model_loc")
         value_function = PathBasedNN(envt,load_model_loc=model_loc)
     elif num == 2:
         value_function = GreedyValueFunction(envt,immideate_reward_score)
