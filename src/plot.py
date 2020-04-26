@@ -357,7 +357,7 @@ def plot_entropy_profit_pareto(data_list,num_drivers):
     for i,name in enumerate(data_list):
         plt.annotate(name,points[i])    
 
-loc = "../logs/epoch_data/preliminary_equality"
+loc = "../logs/epoch_data/lambda+entropy"
 
 all_files = glob.glob(loc+"/*.pkl")
 all_pkl = {}
@@ -369,7 +369,12 @@ names = {'day_11_epoch_data_agents1000_value6_training0_testing1_lambda0.5.pkl':
 for i in all_files:
     name = i.replace(loc+"\\","")
     if name in names:
-        all_pkl[names[name]] = get_data(i)
+        pass
+    elif "2020" in i:
+        data = get_data(i)
+        name = data["settings"]["value_num"]
+        print(data["settings"])
+        all_pkl[name] = data
 
 for i in all_pkl:
     current_label  =i 

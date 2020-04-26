@@ -11,6 +11,8 @@ def read_from_file(file_name):
             value = eval(line.split(": ")[1])
             settings_list[name] = value
 
+    print("Finished reading settings")
+
 def has_value(name):
     return name in settings_list
 

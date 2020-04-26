@@ -1,7 +1,7 @@
 training_days: 0
 testing_days: 1
-num_agents: 10
-value_num: 1
+num_agents: 100
+value_num: 4
 write_file: True
 print_verbose: True
 lambda: 500

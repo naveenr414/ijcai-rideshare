@@ -73,6 +73,7 @@ class CentralAgent(object):
         # The coefficient is the value associated with the decision variable
         decision_variables: Dict[int, Dict[int, Tuple[Any, float]]] = {}
         for agent_idx, scored_actions in enumerate(agent_action_choices):
+            
             for action, value in scored_actions:
                 # Convert action -> id if it hasn't already been done
                 if action not in action_to_id:
@@ -116,10 +117,10 @@ class CentralAgent(object):
 
         # Create Constraint 3: The difference in max and min salary < 100 + 0.2*max
         if Settings.has_value("add_constraints"):
-            previous_min = np.min(self.envt.driver_profits)
-            previous_max = np.max(self.envt.driver_profits)
+            sorted_profits = sorted(self.envt.driver_profits)
 
-            print(previous_min,previous_max)
+            lower_bound = sorted_profits[len(sorted_profits)//10]
+            upper_bound = sorted_profits[-1]
             
             for agent_idx in range(len(agent_action_choices)):
                 previous_profit = self.envt.driver_profits[agent_idx]
@@ -131,11 +132,12 @@ class CentralAgent(object):
                     if agent_idx in action_dict:
                         new_profit = action_profit[action_id]
                         new_profits.append(new_profit)
-
+                        agent_specific_variables.append(action_dict[agent_idx])
+            
                 if Settings.get_value("add_constraints") == "max":
-                    model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))>=(previous_max*0.5-200))
+                    model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))>=(upper_bound*0.5-200))
                 elif Settings.get_value("add_constraints") == "min":
-                    model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))<=(previous_min*2+200))
+                    model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))<=(lower_bound*2+200))
 
 
         # Create Objective

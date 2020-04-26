@@ -1,3 +1,6 @@
+import Settings
+Settings.read_from_file("model_settings.txt")
+
 from Environment import NYEnvironment
 from CentralAgent import CentralAgent
 from LearningAgent import LearningAgent
@@ -5,7 +8,6 @@ from Oracle import Oracle
 import ValueFunction
 from Experience import Experience
 from Request import Request
-import Settings
 
 from typing import List
 
@@ -242,8 +244,6 @@ if __name__ == '__main__':
     Request.MAX_PICKUP_DELAY = PICKUP_DELAY
     Request.MAX_DROPOFF_DELAY = 2 * PICKUP_DELAY
     NEURAL_VALUE_FUNCTIONS = [1,8]
-
-    Settings.read_from_file("model_settings.txt")
 
     # Load in different settings
     training_days = Settings.get_value("training_days")
