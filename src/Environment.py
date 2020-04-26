@@ -13,14 +13,15 @@ from docplex.mp.model import Model  # type: ignore
 import re
 from random import randint, random
 import numpy as np
-
+import Settings
+import Util 
 
 class Environment(metaclass=ABCMeta):
     """Defines a class for simulating the Environment for the RL agent"""
 
     REQUEST_HISTORY_SIZE: int = 1000
 
-    def __init__(self, value_number: int, lamb: float, NUM_LOCATIONS: int, MAX_CAPACITY: int, EPOCH_LENGTH: float, NUM_AGENTS: int, START_EPOCH: float, STOP_EPOCH: float, DATA_DIR: str):
+    def __init__(self, NUM_LOCATIONS: int, MAX_CAPACITY: int, EPOCH_LENGTH: float, NUM_AGENTS: int, START_EPOCH: float, STOP_EPOCH: float, DATA_DIR: str):
         # Load environment
         self.NUM_LOCATIONS = NUM_LOCATIONS
         self.MAX_CAPACITY = MAX_CAPACITY
@@ -35,8 +36,6 @@ class Environment(metaclass=ABCMeta):
         self.num_days_trained = 0
         self.recent_request_history: Deque[Request] = deque(maxlen=self.REQUEST_HISTORY_SIZE)
         self.current_time: float = 0.0
-        self.lamb = lamb
-        self.value_number = value_number
 
     @abstractmethod
     def initialise_environment(self):
@@ -57,6 +56,11 @@ class Environment(metaclass=ABCMeta):
     @abstractmethod
     def get_initial_states(self, num_agents, is_training):
         raise NotImplementedError
+
+    def reset(self):
+        self.driver_utilities = [0 for i in range(self.NUM_AGENTS)]
+        self.driver_profits = [0 for i in range(self.NUM_AGENTS)]
+
 
     def simulate_motion(self, agents: List[LearningAgent], current_requests: List[Request]=[], rebalance: bool=True) -> None:
         # Move all agents
@@ -162,36 +166,6 @@ class Environment(metaclass=ABCMeta):
         minutes_driven = travel_time/60
         return round(minutes_driven+5,2)
 
-    def predicted_change(self,yn,ybar,R,N):
-        return np.log((ybar+R/N)/ybar * ((yn+R)/yn)**(-1/N))
-
-    def get_profit(self,action):
-        profit = 0
-
-        for request in action.requests:
-            dropoff = request.dropoff
-            pickup = request.pickup
-            travel_time = self.get_travel_time(pickup,dropoff)
-            action_profit = self.profit_function(travel_time)
-            profit+=action_profit
-
-        return profit
-
-    def get_entropy(self,i,action,profit):
-        yn = self.driver_profits[i]
-        if yn == 0:
-            yn = 10**-6
-        ybar = np.mean(self.driver_profits)
-        entropy = self.predicted_change(yn,ybar,profit,len(self.driver_profits))
-        return entropy
-
-    def get_full_entropy(self):
-        driver_profits = np.array(self.driver_profits)+10**-6
-        if np.mean(driver_profits)!=0:
-            return -1/(len(self.driver_profits)) * np.sum(np.log(driver_profits/np.mean(driver_profits)))
-        else:
-            return 0
-
     def get_reward(self, action: Action,driver_num: int) -> float:
         """
         Return the reward to an agent for a given (feasible) action.
@@ -201,21 +175,17 @@ class Environment(metaclass=ABCMeta):
         convention in literature.
         """
 
-        if self.value_number in range(1,8):
-            return sum([request.value for request in action.requests])
-        elif self.value_number==8:
-            profit = self.get_profit(action)
-            entropy = self.get_entropy(driver_num,action,profit)
-            
+        if Settings.get_parameter("value_function") == 8:
+            profit = Util.change_profit(self,action)
+            entropy = Util.change_entropy(self,action,driver_num)
+            lamb = Settings.get_parameter("lambda")
+
             if np.isfinite(entropy):
-                return profit - self.lamb * entropy
+                return profit - lamb * entropy
             else:
                 return profit
         else:
-            print("REWARD NOT DEFINED FOR VALUE NUMBER {}".format(self.value_number))
-            a = 1
-            a/=0
-            
+            return sum([request.value for request in action.requests])            
 
     def update_recent_requests(self, recent_requests: List[Request]):
         self.recent_request_history.extend(recent_requests)
@@ -227,8 +197,8 @@ class NYEnvironment(Environment):
     NUM_MAX_AGENTS: int = 3000
     NUM_LOCATIONS: int = 4461
 
-    def __init__(self, value_number,lamb,NUM_AGENTS: int, START_EPOCH: float, STOP_EPOCH: float, MAX_CAPACITY, DATA_DIR: str='../data/ny/', EPOCH_LENGTH: float = 60.0) :
-        super().__init__(value_number,lamb,NUM_LOCATIONS=self.NUM_LOCATIONS, MAX_CAPACITY=MAX_CAPACITY, EPOCH_LENGTH=EPOCH_LENGTH, NUM_AGENTS=NUM_AGENTS, START_EPOCH=START_EPOCH, STOP_EPOCH=STOP_EPOCH, DATA_DIR=DATA_DIR)
+    def __init__(self,NUM_AGENTS: int, START_EPOCH: float, STOP_EPOCH: float, MAX_CAPACITY, DATA_DIR: str='../data/ny/', EPOCH_LENGTH: float = 60.0) :
+        super().__init__(NUM_LOCATIONS=self.NUM_LOCATIONS, MAX_CAPACITY=MAX_CAPACITY, EPOCH_LENGTH=EPOCH_LENGTH, NUM_AGENTS=NUM_AGENTS, START_EPOCH=START_EPOCH, STOP_EPOCH=STOP_EPOCH, DATA_DIR=DATA_DIR)
         self.initialise_environment()
         
 

@@ -1,0 +1,9 @@
+*.pyc
+*.h5
+*.txt
+*.csv
+*SANKETS75FCL
+src/__pycache__
+data/
+src/env/
+logs/

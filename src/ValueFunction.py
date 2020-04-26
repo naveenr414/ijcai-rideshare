@@ -7,11 +7,14 @@ from Experience import Experience
 from CentralAgent import CentralAgent
 from Request import Request
 from Experience import Experience
+import Settings
+import Util 
 
 from typing import List, Tuple, Deque, Dict, Any, Iterable
 
 from abc import ABC, abstractmethod
-from keras.layers import Input, LSTM, Dense, Embedding, TimeDistributed, Masking, Concatenate, Flatten, Bidirectional  # type: ignore
+from keras.layers import Input, LSTM, Dense, Embedding, TimeDistributed
+from keras.layers import Masking, Concatenate, Flatten, Bidirectional 
 from keras.models import Model, load_model, clone_model  # type: ignore
 from keras.backend import function as keras_function  # type: ignore
 from keras.optimizers import Adam  # type: ignore
@@ -30,7 +33,7 @@ import pickle
 class ValueFunction(ABC):
     """docstring for ValueFunction"""
 
-    def __init__(self, log_dir: str):
+    def __init__(self, log_dir: str="../logs/ValueFunctionLogs/"):
         super(ValueFunction, self).__init__()
 
         # Write logs
@@ -57,262 +60,10 @@ class ValueFunction(ABC):
     def remember(self, experience: Experience):
         raise NotImplementedError
 
-class Driver0(ValueFunction):
-    """docstring for RewardPlusDelay"""
-
-    def __init__(self, log_dir='../logs/'):
-        super(Driver0, self).__init__(log_dir)
-
-    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
-        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
-        for experience in experiences:
-            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
-                scored_actions: List[Tuple[Action, float]] = []
-                for action in feasible_actions:
-                    assert action.new_path
-
-                    if i == 0:
-                        score = sum([request.value for request in action.requests])
-                    else:
-                        score = 0
-
-                    scored_actions.append((action, score))
-                scored_actions_all_agents.append(scored_actions)
-
-        return scored_actions_all_agents
-
-    def update(self, *args, **kwargs):
-        pass
-
-    def remember(self, *args, **kwargs):
-        pass
-    
-class ClosestDriver(ValueFunction):
-    """docstring for RewardPlusDelay"""
-
-    def __init__(self, envt,log_dir='../logs/'):
-        super(ClosestDriver, self).__init__(log_dir)
-        self.envt = envt
-
-    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
-        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
-        for experience in experiences:
-            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
-                scored_actions: List[Tuple[Action, float]] = []
-                for action in feasible_actions:
-                    assert action.new_path
-
-                    score = sum([request.value for request in action.requests])
-                    position = experience.agents[i].position.next_location
-                    all_positions = [request.pickup for request in action.requests] + [request.dropoff for request in action.requests]
-
-                    
-                    max_distance = max([0]+[self.envt.get_travel_time(position,j) for j in all_positions])
-
-                    if max_distance != 0:
-                        score/=max_distance
-                    elif score != 0:
-                        score = 10000000
-
-                    scored_actions.append((action, score))
-                scored_actions_all_agents.append(scored_actions)
-
-        return scored_actions_all_agents
-
-    def update(self, *args, **kwargs):
-        pass
-
-    def remember(self, *args, **kwargs):
-        pass
-
-class FurthestDriver(ValueFunction):
-    """docstring for RewardPlusDelay"""
-
-    def __init__(self, envt,log_dir='../logs/'):
-        super(FurthestDriver, self).__init__(log_dir)
-        self.envt = envt
-
-    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
-        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
-        for experience in experiences:
-            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
-                scored_actions: List[Tuple[Action, float]] = []
-                for action in feasible_actions:
-                    assert action.new_path
-
-                    score = sum([request.value for request in action.requests])
-                    score = min(score,1)
-                    
-                    position = experience.agents[i].position.next_location
-                    all_positions = [request.pickup for request in action.requests] + [request.dropoff for request in action.requests]
-
-                    
-                    max_distance = max([0]+[self.envt.get_travel_time(position,j) for j in all_positions])
-
-                    score*=max_distance                    
-                    scored_actions.append((action, score))
-                scored_actions_all_agents.append(scored_actions)
-
-        return scored_actions_all_agents
-
-    def update(self, *args, **kwargs):
-        pass
-
-    def remember(self, *args, **kwargs):
-        pass
-
-class TwoSidedFairness(ValueFunction):
-    """docstring for RewardPlusDelay"""
-
-    def __init__(self, envt,lamb,log_dir='../logs/'):
-        super(TwoSidedFairness, self).__init__(log_dir)
-        self.envt = envt
-        self.lamb = lamb
-
-    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
-        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
-
-        # GET DRIVER UTILITIES 
-        driver_utilities = self.envt.driver_utilities 
-
-        max_customer_utility = 0
-        max_driver_utility = np.max(driver_utilities)
-        
-        for experience in experiences:
-            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
-                scored_actions: List[Tuple[Action, float]] = []
-                for action in feasible_actions:
-                    assert action.new_path
-                    position = experience.agents[i].position.next_location
-
-                    time_driven = 0
-                    for request in action.requests:
-                        time_driven+=self.envt.get_travel_time(request.pickup,request.dropoff)
-
-                    times_to_request = sum([self.envt.get_travel_time(position,request.pickup) for request in action.requests])
-                    previous_driver_utility = driver_utilities[i]
-
-                    if time_driven == 0 or times_to_request>300*len(action.requests):
-                        score = 0
-                    else:
-                        score = 1000/(self.lamb *((len(experiences)-1)*(max_driver_utility-previous_driver_utility) + abs(max_driver_utility-(previous_driver_utility+time_driven-times_to_request))
-                                               ) + (1-self.lamb)*(times_to_request))
-                    
-                    scored_actions.append((action, score))
-                scored_actions_all_agents.append(scored_actions)
-
-        return scored_actions_all_agents
-
-    def update(self, *args, **kwargs):
-        pass
-
-    def remember(self, *args, **kwargs):
-        pass
-
-class RewardPlusDelay(ValueFunction):
-    """docstring for RewardPlusDelay"""
-
-    def __init__(self, DELAY_COEFFICIENT: float=1e-3, log_dir='../logs/'):
-        super(RewardPlusDelay, self).__init__(log_dir)
-        self.DELAY_COEFFICIENT = DELAY_COEFFICIENT
-
-    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
-        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
-        for experience in experiences:
-            for feasible_actions in experience.feasible_actions_all_agents:
-                scored_actions: List[Tuple[Action, float]] = []
-                for action in feasible_actions:
-                    assert action.new_path
-
-                    immediate_reward = sum([request.value for request in action.requests])
-                    remaining_delay_bonus = self.DELAY_COEFFICIENT * action.new_path.total_delay
-                    score = immediate_reward + remaining_delay_bonus
-
-                    scored_actions.append((action, score))
-                scored_actions_all_agents.append(scored_actions)
-
-        return scored_actions_all_agents
-
-    def update(self, *args, **kwargs):
-        pass
-
-    def remember(self, *args, **kwargs):
-        pass
-
-
-class ProfitPlusEntropy(ValueFunction):
-    """docstring for RewardPlusDelay"""
-
-    def __init__(self, envt,lamb, log_dir='../logs/'):
-        super(ProfitPlusEntropy, self).__init__(log_dir)
-        self.lamb = lamb
-        self.envt = envt
-
-    def profit_function(self,travel_time):
-        minutes_driven = travel_time/60
-        return round(minutes_driven+5,2)
-
-    def predicted_change(self,yn,ybar,R,N):
-            return np.log((ybar+R/N)/ybar * ((yn+R)/yn)**(-1/N))
-
-    def get_profit(self,action):
-        profit = 0
-
-        for request in action.requests:
-            dropoff = request.dropoff
-            pickup = request.pickup
-            travel_time = self.envt.get_travel_time(pickup,dropoff)
-            action_profit = self.profit_function(travel_time)
-            profit+=action_profit
-
-        return profit
-
-    def get_entropy(self,i,action,profit):
-        yn = self.envt.driver_profits[i]
-        if yn == 0:
-            yn = 10**-6
-        ybar = np.mean(self.envt.driver_profits)
-        entropy = self.predicted_change(yn,ybar,profit,len(self.envt.driver_profits))
-        return entropy
-
-    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
-        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
-        for experience in experiences:
-            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
-                scored_actions: List[Tuple[Action, float]] = []
-                for action in feasible_actions:
-                    assert action.new_path
-                    profit = self.get_profit(action)
-                    entropy = self.get_entropy(i,action,profit)
-
-                    if np.isfinite(entropy):
-                        score = profit- self.lamb * entropy
-                    else:
-                        score = profit 
-
-                    scored_actions.append((action, score))
-                scored_actions_all_agents.append(scored_actions)
-
-        return scored_actions_all_agents
-
-    def update(self, *args, **kwargs):
-        pass
-
-    def remember(self, *args, **kwargs):
-        pass
-
-
-class ImmediateReward(RewardPlusDelay):
-    """docstring for ImmediateReward"""
-
-    def __init__(self):
-        super(ImmediateReward, self).__init__(DELAY_COEFFICIENT=0)
-
-
 class NeuralNetworkBased(ValueFunction):
     """docstring for NeuralNetwork"""
 
-    def __init__(self, envt: Environment, load_model_loc: str, log_dir: str, GAMMA: float=-1, BATCH_SIZE_FIT: int=32, BATCH_SIZE_PREDICT: int=8192, TARGET_UPDATE_TAU: float=0.1):
+    def __init__(self, envt: Environment, load_model_loc: str, log_dir: str="../logs/ValueFunctionLogs/", GAMMA: float=-1, BATCH_SIZE_FIT: int=32, BATCH_SIZE_PREDICT: int=8192, TARGET_UPDATE_TAU: float=0.1):
         super(NeuralNetworkBased, self).__init__(log_dir)
 
         # Initialise Constants
@@ -543,16 +294,22 @@ class PathBasedNN(NeuralNetworkBased):
         # Check if there are pretrained embeddings
         if (isfile(self.envt.DATA_DIR + 'embedding_weights.pkl')):
             weights = pickle.load(open(self.envt.DATA_DIR + 'embedding_weights.pkl', 'rb'))
-            location_embed = Embedding(output_dim=100, input_dim=self.envt.NUM_LOCATIONS + 1, mask_zero=True, name='location_embedding', embeddings_initializer=Constant(weights[0]), trainable=False)
+            location_embed = Embedding(output_dim=100, input_dim=self.envt.NUM_LOCATIONS + 1,
+                                       mask_zero=True, name='location_embedding',
+                                       embeddings_initializer=Constant(weights[0]),
+                                       trainable=False)
         else:
-            location_embed = Embedding(output_dim=100, input_dim=self.envt.NUM_LOCATIONS + 1, mask_zero=True, name='location_embedding')
+            location_embed = Embedding(output_dim=100, input_dim=self.envt.NUM_LOCATIONS + 1,
+                                       mask_zero=True, name='location_embedding')
 
         # Get path and current locations' embeddings
-        path_location_input = Input(shape=(self.envt.MAX_CAPACITY * 2 + 1,), dtype='int32', name='path_location_input')
+        path_location_input = Input(shape=(self.envt.MAX_CAPACITY * 2 + 1,),
+                                    dtype='int32', name='path_location_input')
         path_location_embed = location_embed(path_location_input)
 
         # Get associated delay for different path locations
-        delay_input = Input(shape=(self.envt.MAX_CAPACITY * 2 + 1, 1), name='delay_input')
+        delay_input = Input(shape=(self.envt.MAX_CAPACITY * 2 + 1, 1),
+                            name='delay_input')
         delay_masked = Masking(mask_value=-1)(delay_input)
 
         # Get entire path's embedding
@@ -561,7 +318,8 @@ class PathBasedNN(NeuralNetworkBased):
 
         # Get current time's embedding
         current_time_input = Input(shape=(1,), name='current_time_input')
-        current_time_embed = Dense(100, activation='elu', name='time_embedding')(current_time_input)
+        current_time_embed = Dense(100, activation='elu',
+                                   name='time_embedding')(current_time_input)
 
         # Get embedding for other agents
         other_agents_input = Input(shape=(1,), name='other_agents_input')
@@ -573,14 +331,21 @@ class PathBasedNN(NeuralNetworkBased):
         agent_profit_input = Input(shape=(1,),name='agent_profit_input')
 
         # Get Embedding for the entire thing
-        state_embed = Concatenate()([path_embed, current_time_embed, other_agents_input, num_requests_input])
+        state_embed = Concatenate()([path_embed, current_time_embed,
+                                     other_agents_input, num_requests_input])
         state_embed = Dense(300, activation='elu', name='state_embed_1')(state_embed)
         state_embed = Dense(300, activation='elu', name='state_embed_2')(state_embed)
 
         # Get predicted Value Function
         output = Dense(1, name='output')(state_embed)
 
-        model = Model(inputs=[path_location_input, delay_input, current_time_input, other_agents_input, num_requests_input,agent_profit_input], outputs=output)
+        inputs = [path_location_input, delay_input, current_time_input,
+                  other_agents_input, num_requests_input]
+        if Settings.has_parameter("profit_node") and Settings.get_parameter("profit_node"):
+            inputs.append(agent_profit_input)
+        
+
+        model = Model(inputs=inputs, outputs=output)
 
         return model
 
@@ -593,7 +358,8 @@ class PathBasedNN(NeuralNetworkBased):
             agent_profit_input = (agent.profit-np.mean(self.envt.driver_profits))/(np.std(self.envt.driver_profits))
         else:
             agent_profit_input = 0
-    
+
+        # For some reason, this mode was weird 
         if self.load_model_loc == "../models/PathBasedNN_1000agent_4capacity_300delay_60interval_2_245261.h5":
             location_order: np.ndarray = np.zeros(shape=(self.envt.MAX_CAPACITY * 5 + 1,), dtype='int32')
             delay_order: np.ndarray = np.zeros(shape=(self.envt.MAX_CAPACITY * 5 + 1, 1)) - 1
@@ -655,6 +421,138 @@ class PathBasedNN(NeuralNetworkBased):
             input["delay_input"].append(delay_input)
             input["path_location_input"].append(path_location_input)
             input["other_agents_input"].append(other_agents_input)
-            input["agent_profit_input"].append(agent_profit_input)
+
+            if Settings.has_parameter("profit_node") and Settings.get_parameter("profit_node"):
+                input["agent_profit_input"].append(agent_profit_input)
 
         return input
+
+class GreedyValueFunction(ValueFunction):
+    def __init__(self,envt,score_function, log_dir="../logs/ValueFunctionLogs/"):
+        super(GreedyValueFunction,self).__init__(log_dir)
+        self.envt = envt
+        self.score_function = score_function
+
+    def get_value(self, experiences: List[Experience]) -> List[List[Tuple[Action, float]]]:
+        scored_actions_all_agents: List[List[Tuple[Action, float]]] = []
+        for experience in experiences:
+            for i,feasible_actions in enumerate(experience.feasible_actions_all_agents):
+                scored_actions: List[Tuple[Action, float]] = []
+                for action in feasible_actions:
+                    assert action.new_path
+
+                    # Takes in an environment, action, and a driver number
+                    score = self.score_function(self.envt,action,experience.agents[i],i)
+                    scored_actions.append((action, score))
+                scored_actions_all_agents.append(scored_actions)
+
+        return scored_actions_all_agents
+
+    def update(self, *args, **kwargs):
+        pass
+
+    def remember(self, *args, **kwargs):
+        pass
+
+def driver_0_score(envt,action,agent,driver_num):
+    if driver_num == 0:
+        score = sum([request.value for request in action.requests])
+    else:
+        score = 0
+
+    return score
+
+def closest_driver_score(envt,action,agent,driver_num):
+    score = sum([request.value for request in action.requests])
+    position = agent.position.next_location
+    all_positions = [request.pickup for request in action.requests]
+    all_positions +=[request.dropoff for request in action.requests]
+
+    if len(all_positions) == 0:
+        return 0
+    
+    max_distance = max([self.envt.get_travel_time(position,j) for j in all_positions])
+
+    if max_distance != 0:
+        score/=max_distance
+    else: 
+        score = 10000000
+
+    return score
+
+def furthest_driver_score(envt,action,agent,driver_num):
+    score = sum([request.value for request in action.requests])    
+    position = agent.position.next_location
+    all_positions = [request.pickup for request in action.requests]
+    all_positions += [request.dropoff for request in action.requests]
+
+    max_distance = max([self.envt.get_travel_time(position,j) for j in all_positions],default=0)
+    score*=max_distance
+    return score
+
+def two_sided_score(envt,action,agent,driver_num):
+    position = agent.position.next_location
+    lamb = Settings.get_parameter("lambda")
+
+    time_driven = 0
+    for request in action.requests:
+        time_driven+=self.envt.get_travel_time(request.pickup,request.dropoff)
+
+    times_to_request = sum([envt.get_travel_time(position,request.pickup) for request in action.requests])
+
+    previous_driver_utility = envt.driver_utilities[driver_num]
+    if time_driven == 0 or times_to_request>300*len(action.requests):
+        score = 0
+    else:
+        driver_inequality = abs(max_driver_utility-(previous_driver_utility+time_driven-times_to_request))
+        passenger_inequality = times_to_request
+        score = 1000/(lamb*driver_inequality (1-lamb)*passenger_inequality)
+
+    return score
+
+def lambda_entropy_score(envt,action,agent,driver_num):
+    profit = Util.change_profit(envt,action)
+    entropy = Util.change_entropy(envt,action,driver_num)
+    lamb = Settings.get_parameter("lambda")
+
+    if np.isfinite(entropy):
+        score = profit - lamb * entropy
+    else:
+        score = profit
+
+    return score
+
+def immideate_reward_score(envt,action,agent,driver_num):
+    immediate_reward = sum([request.value for request in action.requests])
+    DELAY_COEFFICIENT = 0
+    if Settings.has_parameter("delay_coefficient"):
+        DELAY_COEFFICIENT = Settings.get_parameter("delay_coefficient")
+    
+    remaining_delay_bonus = DELAY_COEFFICIENT * action.new_path.total_delay
+    score = immediate_reward + remaining_delay_bonus
+    return score
+
+def num_to_value_function(envt,num):
+    if num == 1:
+        model_loc = ""
+        if Settings.has_value("model_loc"):
+            model_loc = Settings.get_value("model_loc")
+        value_function = PathBasedNN(envt,load_model_loc=model_loc)
+    elif num == 2:
+        value_function = GreedyValueFunction(envt,immideate_reward_score)
+    elif num == 3:
+        value_function = GreedyValueFunction(envt,driver_0_score)
+    elif num == 4:
+        value_function = GreedyValueFunction(envt,closest_driver_score)
+    elif num == 5:
+        value_function = GreedyValueFunction(envt,furthest_driver_score)
+    elif num == 6:
+        value_function = GreedyValueFunction(envt,two_sided_score)
+    elif num == 7:
+        value_function = GreedyValueFunction(envt,profit_entropy_score)
+    elif num == 8:
+        value_function = PathBasedNN(envt, load_model_loc=model_loc)
+
+    return value_function
+
+

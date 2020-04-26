@@ -2,9 +2,10 @@ from Environment import NYEnvironment
 from CentralAgent import CentralAgent
 from LearningAgent import LearningAgent
 from Oracle import Oracle
-from ValueFunction import PathBasedNN, RewardPlusDelay, NeuralNetworkBased, Driver0, ClosestDriver, FurthestDriver, TwoSidedFairness, ProfitPlusEntropy
+import ValueFunction
 from Experience import Experience
 from Request import Request
+import Settings
 
 from typing import List
 
@@ -17,9 +18,11 @@ import pickle
 import datetime
 import numpy as np
 import time
+import datetime
 
 start = time.time()
 
+# Get statistics by simulating the next epoch 
 def get_statistics_next_epoch(agent,envt):
     ret_dictionary = {'total_delivery_delay':0,'requests_served':0}
     start_time = envt.current_time
@@ -65,10 +68,6 @@ def get_statistics_next_epoch(agent,envt):
 
     return ret_dictionary
 
-def profit_function(travel_time):
-    minutes_driven = travel_time/60
-    return round(minutes_driven+5,2)
-
 def get_profit_distribution(scored_final_actions):
     profits = []
     agent_profits = []
@@ -78,7 +77,7 @@ def get_profit_distribution(scored_final_actions):
             dropoff = request.dropoff
             pickup = request.pickup
             travel_time = envt.get_travel_time(pickup,dropoff)
-            action_profit = profit_function(travel_time)
+            action_profit = envt.profit_function(travel_time)
 
             if action_profit!=0:
                 profits.append(action_profit)
@@ -115,7 +114,6 @@ def run_epoch(envt,
                       'epoch_requests_accepted':[],
                       'epoch_dropoff_delay':[],
                       'epoch_requests_seen':[],
-                      'epoch_driver_0_empty':[],
                       'epoch_requests_accepted_profit':[],
                       'epoch_each_agent_profit':[],
                       'epoch_locations_all':[],
@@ -125,8 +123,10 @@ def run_epoch(envt,
         # Get new requests
         try:
             current_requests = next(request_generator)
-            print("Current time: {} or {} on DAY {}".format(envt.current_time,datetime.timedelta(seconds=envt.current_time),DAY))
-            print("Number of new requests: {}".format(len(current_requests)))
+
+            if Settings.has_value("print_verbose") and Settings.get_value("print_verbose"):
+                print("Current time: {} or {} on DAY {}".format(envt.current_time,datetime.timedelta(seconds=envt.current_time),DAY))
+                print("Number of new requests: {}".format(len(current_requests)))
         except StopIteration:
             break
 
@@ -163,11 +163,11 @@ def run_epoch(envt,
             locations_served += [request.pickup for request in action.requests]
             rewards.append(reward)
             total_value_generated += reward
-            
-        print("Reward for epoch: {}".format(sum(rewards)))
+
+        if Settings.has_value("print_verbose") and Settings.get_value("print_verbose"):
+            print("Reward for epoch: {}".format(sum(rewards)))
 
         profits,agent_profits = get_profit_distribution(scored_final_actions)            
-
         for i,j in agent_profits:
             envt.driver_profits[i]+=j
 
@@ -179,14 +179,6 @@ def run_epoch(envt,
             # Update value function every TRAINING_FREQUENCY timesteps
             if ((int(envt.current_time) / int(envt.EPOCH_LENGTH)) % TRAINING_FREQUENCY == TRAINING_FREQUENCY - 1):
                 value_function.update(central_agent)
-
-                # Diagnostics
-                """for action, score in scored_actions_all_agents[0]:
-                    print("{}: {}, {}, {}".format(score, action.requests, action.new_path, action.new_path.total_delay))
-                print()
-                for idx, (action, score) in enumerate(scored_final_actions[:10]):
-                    print("{}: {}, {}, {}".format(score, action.requests, action.new_path, action.new_path.total_delay))
-                """
 
         # Sanity check
         for agent in agents:
@@ -214,15 +206,13 @@ def run_epoch(envt,
         ret_dictionary['epoch_dropoff_delay'].append(epoch_dictionary['total_delivery_delay'])
         ret_dictionary['epoch_requests_accepted'].append(sum(rewards))
         ret_dictionary['epoch_requests_seen'].append(len(current_requests))
-        ret_dictionary['epoch_driver_0_empty'].append(agents[0].path.is_empty())
         ret_dictionary['epoch_requests_accepted_profit'].append(sum(profits))
         ret_dictionary['epoch_each_agent_profit'].append(agent_profits)
         ret_dictionary['epoch_locations_accepted'].append(locations_served)
 
-        if print_verbose == 1:
+        if Settings.has_value("print_verbose") and Settings.get_value("print_verbose"):
             print("Requests served {}".format(np.sum(ret_dictionary["epoch_requests_completed"])))
             print("Requests accepted {}".format(sum(rewards)))
-            print("Entropy {}".format(envt.get_full_entropy()))
 
     # Printing statistics for current epoch
     print('Number of requests accepted: {}'.format(total_value_generated))
@@ -237,89 +227,50 @@ def run_epoch(envt,
 if __name__ == '__main__':
     # pdb.set_trace()
 
-    # Parse command line arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--capacity', type=int, default=4)
-    parser.add_argument('-n', '--numagents', type=int, default=100)
-    parser.add_argument('-d', '--pickupdelay', type=int, default=300)
-    parser.add_argument('-t', '--decisioninterval', type=int, default=60)
-    parser.add_argument('-m', '--modellocation', type=str)
-    parser.add_argument('-i','--usecommands',type=bool,default=False)
-    parser.add_argument('-v', '--valuefunction', type=int)
-    parser.add_argument('-tr', '--trainingdays', type=int)
-    parser.add_argument('-te', '--testingdays', type=int)
-    parser.add_argument('-w', '--writetofile', type=int)
-    parser.add_argument('-p', '--printverbose', type=int)
-    parser.add_argument('-l','--lamb',type=float,default=1)
-
-    args = parser.parse_args()
-
-    Request.MAX_PICKUP_DELAY = args.pickupdelay
-    Request.MAX_DROPOFF_DELAY = 2 * args.pickupdelay
-
-    if not args.usecommands:
-        numagents = int(input("How many agents: "))
-        type_of_value_function = int(input("1: NN based, 2: Reward based, 3: Driver 0, 4: Closest Driver , 5: Furthest Driver, 6: Two Sided Fairness, 7: Profit + Entropy w/o Deep Learning, 8: Profit + Entropy with Deep Learning "))
-        num_training_days = int(input("How many training days (default is 7): "))
-        num_testing_days = int(input("How many testing days (default is 5): "))
-        write_to_file = int(input("Write output to a file? 1 for yes, 0 for no "))
-        print_verbose = int(input("Print verbose? 1 for yes, 0 for no "))
-        lamb = float(input("Value of lambda: "))
-    else:
-        numagents = args.numagents
-        type_of_value_function = args.valuefunction
-        num_training_days = args.trainingdays
-        num_testing_days = args.testingdays
-        write_to_file = args.writetofile
-        print_verbose = args.printverbose
-        lamb = args.lamb
-        
-
-    input_settings = {'numagents':numagents, 'type_value':type_of_value_function,'num_training':num_training_days,'num_testing':num_testing_days,'write_to_file':write_to_file,'lambda':lamb}
-    
-
-    # Constants
+    PICKUP_DELAY = 300
+    CAPACITY = 4
+    DECISION_INTERVAL = 60
     START_HOUR: int = 0
     END_HOUR: int = 24
     NUM_EPOCHS: int = 1
-    TRAINING_DAYS: List[int] = list(range(3, 3+num_training_days)) #3,10
+    CAPACITY = 4
+    PICKUP_DELAY = 300
+    DECISION_INTERVAL=60
     VALID_DAYS: List[int] = [2]
-    TEST_DAYS: List[int] = list(range(11, 11+num_testing_days)) #11,16
     VALID_FREQ: int = 4
     SAVE_FREQ: int = VALID_FREQ
-    LOG_DIR: str = '../logs/{}agent_{}capacity_{}delay_{}interval/'.format(numagents, args.capacity, args.pickupdelay, args.decisioninterval)
-    MODEL_LOC: str = args.modellocation
+    Request.MAX_PICKUP_DELAY = PICKUP_DELAY
+    Request.MAX_DROPOFF_DELAY = 2 * PICKUP_DELAY
+    NEURAL_VALUE_FUNCTIONS = [1,8]
+
+    Settings.read_from_file("model_settings.txt")
+
+    # Load in different settings
+    training_days = Settings.get_value("training_days")
+    testing_days = Settings.get_value("testing_days")
+    num_agents = Settings.get_value("num_agents")
+    write_to_file = Settings.get_value("write_file")
+    value_num = Settings.get_value("value_num")
+
+    TRAINING_DAYS: List[int] = list(range(3, 3+training_days))
+    TEST_DAYS: List[int] = list(range(11, 11+testing_days))
 
     # Initialising components
     # TODO: Save start hour not start epoch
-    envt = NYEnvironment(type_of_value_function,lamb,numagents, START_EPOCH=START_HOUR * 3600, STOP_EPOCH=END_HOUR * 3600, MAX_CAPACITY=args.capacity, EPOCH_LENGTH=args.decisioninterval)
+    envt = NYEnvironment(num_agents, START_EPOCH=START_HOUR * 3600, STOP_EPOCH=END_HOUR * 3600,
+                         MAX_CAPACITY=CAPACITY, EPOCH_LENGTH=DECISION_INTERVAL)
     oracle = Oracle(envt)
     central_agent = CentralAgent(envt)
+    value_function = ValueFunction.num_to_value_function(envt,value_num)
 
-    if type_of_value_function == 1:
-        value_function = PathBasedNN(envt, log_dir=LOG_DIR, load_model_loc=MODEL_LOC)
-    elif type_of_value_function == 2:
-        value_function = RewardPlusDelay(DELAY_COEFFICIENT=1e-7, log_dir=LOG_DIR)
-    elif type_of_value_function == 3:
-        value_function = Driver0()
-    elif type_of_value_function == 4:
-        value_function = ClosestDriver(envt)
-    elif type_of_value_function == 5:
-        value_function = FurthestDriver(envt)
-    elif type_of_value_function == 6:
-        value_function = TwoSidedFairness(envt,lamb)
-    elif type_of_value_function == 7:
-        value_function = ProfitPlusEntropy(envt,lamb)
-    elif type_of_value_function == 8:
-        value_function = PathBasedNN(envt, log_dir=LOG_DIR, load_model_loc=MODEL_LOC)
+    print("Input settings {}".format(Settings.settings_list))
 
     max_test_score = 0
     for epoch_id in range(NUM_EPOCHS):
         for day in TRAINING_DAYS:
-            print("Input settings {}".format(input_settings))
             epoch_data = run_epoch(envt, oracle, central_agent, value_function, day, is_training=True)
             total_requests_served = epoch_data['total_requests_accepted']
-            print("\nDAY: {}, Requests: {}\n\n".format(day, total_requests_served))
+            print("DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
             value_function.add_to_logs('requests_served', total_requests_served, envt.num_days_trained)
 
             # Check validation score every VALID_FREQ days
@@ -327,7 +278,7 @@ if __name__ == '__main__':
                 test_score = 0
                 for day in VALID_DAYS:
                     total_requests_served = run_epoch(envt, oracle, central_agent, value_function, day, is_training=False)['total_requests_accepted']
-                    print("\n(TEST) DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
+                    print("(VALIDATION) DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
                     test_score += total_requests_served
                 value_function.add_to_logs('validation_score', test_score, envt.num_days_trained)
 
@@ -338,33 +289,27 @@ if __name__ == '__main__':
                         max_test_score = test_score if test_score > max_test_score else max_test_score
 
             envt.num_days_trained += 1
-            if type_of_value_function == 1:
-                value_function.model.save('../models/{}_{}.h5'.format(numagents,  envt.num_days_trained))
-
-    # CHECK TEST SCORE
-    # value_function_baseline = RewardPlusDelay(DELAY_COEFFICIENT=1e-7, log_dir=LOG_DIR)
+            if value_num in NEURAL_VALUE_FUNCTIONS:
+                value_function.model.save('../models/{}_{}.h5'.format(num_agents,  envt.num_days_trained))
 
     # Reset the driver utilities
-    envt.driver_utilities = [0 for i in range(numagents)]
-    envt.driver_profits = [0 for i in range(numagents)]
-
+    envt.reset()
 
     for day in TEST_DAYS:
-        # Initialising agents
-        print("Input settings {}".format(input_settings))
         initial_states = envt.get_initial_states(envt.NUM_AGENTS, is_training=False)
         agents = [LearningAgent(agent_idx, initial_state) for agent_idx, initial_state in enumerate(initial_states)]
 
         epoch_data = run_epoch(envt, oracle, central_agent, value_function, day, is_training=False, agents_predefined=agents)
         total_requests_served = epoch_data['total_requests_accepted']
-        print("\n(TEST) DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
-        if write_to_file == 1:
-            pickle.dump(epoch_data,open("../logs/epoch_data/day_{}_epoch_data_agents{}_value{}_training{}_testing{}_lambda{}.pkl".format(day,numagents,type_of_value_function,num_training_days,num_testing_days,lamb),"wb"))
-        value_function.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)
+        print("(TEST) DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
 
-        # total_requests_served = run_epoch(envt, oracle, central_agent, value_function_baseline, day, is_training=False, agents_predefined=agents)
-        # print("\n(TEST) DAY: {}, Requests: {}\n\n".format(day, total_requests_served))
-        # value_function_baseline.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)
+        # Write our pickled resutls 
+        if write_to_file:
+            epoch_data['settings'] = Settings.settings_list
+            file_name = str(datetime.datetime.now()).split(".")[0].replace(" ","_")
+            pickle.dump(epoch_data,open("../logs/epoch_data/"+file_name+".pkl","wb"))
+            
+        value_function.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)
 
         envt.num_days_trained += 1
 
