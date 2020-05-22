@@ -522,6 +522,13 @@ def lambda_entropy_score(envt,action,agent,driver_num):
 
     return score
 
+def lambda_variance_score(envt,action,agent,driver_num):
+    profit = Util.change_profit(envt,action)
+    variance = Util.change_variance(envt,action,driver_num)
+    lamb = Settings.get_value("lambda")
+
+    return profit-lamb*variance 
+
 def immideate_reward_score(envt,action,agent,driver_num):
     immediate_reward = sum([request.value for request in action.requests])
     DELAY_COEFFICIENT = 0
@@ -549,9 +556,13 @@ def num_to_value_function(envt,num):
     elif num == 6:
         value_function = GreedyValueFunction(envt,two_sided_score)
     elif num == 7:
-        value_function = GreedyValueFunction(envt,profit_entropy_score)
+        value_function = GreedyValueFunction(envt,lambda_entropy_score)
     elif num == 8:
         value_function = PathBasedNN(envt, load_model_loc=model_loc)
+    elif num == 9:
+        value_function = GreedyValueFunction(envt,lambda_variance_score)
+    elif num == 10:
+        value_function = PathBasedNN(envt,load_model_loc=model_loc)
 
     return value_function
 

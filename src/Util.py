@@ -30,3 +30,12 @@ def get_entropy(envt):
         return -1/(N) * np.sum(np.log(driver_profits/ybar))
     else:
         return 0
+
+def change_variance(envt,action,driver_num):
+    R = change_profit(envt,action)
+    y = envt.driver_profits[driver_num]
+    if y == 0:
+        y = 10**-6
+    ybar = np.mean(envt.driver_profits)
+    n = len(envt.driver_profits)
+    return R*((n-1)/n**2) * (2*(y - ybar) + ((n-1)/n)*R + R/n) + 2*(y-ybar)*R/n**2

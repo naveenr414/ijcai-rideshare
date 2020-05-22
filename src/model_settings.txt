@@ -1,8 +1,7 @@
 training_days: 0
 testing_days: 1
-num_agents: 100
-value_num: 4
+num_agents: 2
+value_num: 10
 write_file: True
 print_verbose: True
-lambda: 500
-add_constraints: "min"
+lambda: 0

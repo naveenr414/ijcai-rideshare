@@ -184,6 +184,12 @@ class Environment(metaclass=ABCMeta):
                 return profit - lamb * entropy
             else:
                 return profit
+        elif Settings.get_value("value_num") == 10:
+            profit = Util.change_profit(self,action)
+            variance = Util.change_variance(self,action,driver_num)
+            lamb = Settings.get_value("lambda")
+
+            return profit - lamb*variance 
         else:
             return sum([request.value for request in action.requests])            
 

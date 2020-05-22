@@ -123,6 +123,10 @@ def entropy(data,num_drivers):
     payment_driver = np.array(list((payment_by_driver(data,num_drivers).values())))
     payment_driver+=10**-6
     ybar = np.mean(payment_driver)
+
+    print(payment_driver)
+    print(np.log(payment_driver/ybar))
+    
     return -1/num_drivers * (np.sum(np.log(payment_driver/ybar)))
 
 def plot_profit_over_time(data):
@@ -179,6 +183,7 @@ def plot_most_common_acceptance(data,n=10):
 def plot_lorenz(data,num_drivers):
     payment = payment_by_driver(data,num_drivers)
     X = np.array(sorted([i for i in payment.values()]))
+    print(np.sum(X),np.var(X))
     X_lorenz = X.cumsum()/X.sum()
     X_lorenz = np.insert(X_lorenz, 0, 0)
     X_lorenz[0], X_lorenz[-1]
@@ -368,19 +373,15 @@ names = {'day_11_epoch_data_agents1000_value6_training0_testing1_lambda0.5.pkl':
 
 for i in all_files:
     name = i.replace(loc+"\\","")
-    if name in names:
-        pass
+    if "value2" in name:
+        all_pkl["value2"] = get_data(i)
     elif "2020" in i:
         data = get_data(i)
         name = data["settings"]["value_num"]
-        print(data["settings"])
         all_pkl[name] = data
 
 for i in all_pkl:
-    current_label  =i 
+    current_label = i
     plot_lorenz(all_pkl[i],1000)
-
-plt.ylabel('KL Divergence', fontsize=24)
-plt.title('Rider inequalities',fontsize=24)
 plt.legend()
 plt.show()
