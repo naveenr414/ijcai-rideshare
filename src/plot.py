@@ -360,7 +360,10 @@ def gini(data,n=-1):
 def average_dropoff_delay(data):
     avg_time = np.sum(data['epoch_dropoff_delay'])/np.sum(data['epoch_requests_completed'])
     return avg_time
-    
+
+# Rider Utility #2
+def requests_completed(data):
+    return np.sum(data['epoch_requests_completed'])/np.sum(data['epoch_requests_seen'])
 
 loc_list = ["../logs/epoch_data/variance","../logs/epoch_data/baseline"]
 
@@ -370,12 +373,29 @@ for loc in loc_list:
 
 all_pickles = [pickle.loads(open(i,"rb").read()) for i in all_files]
 
+runs = {}
+
 for data in all_pickles:
+    name = str(data["settings"]["value_num"])
     if "lambda" in data["settings"]:
-        print(data["settings"]["value_num"],data["settings"]["lambda"])
-    else:
-        print(data["settings"]["value_num"])
-    print(total_profit(data))
-    print(gini(data))
-    print(average_dropoff_delay(data))
-    print()
+        name+="_"+str(data["settings"]["lambda"])
+
+    runs[name] = (total_profit(data),gini(data),average_dropoff_delay(data),requests_completed(data))  
+
+direction = [1,-1,-1,1]
+
+pareto_frontier = []
+for name in runs:
+    pareto = True
+    for other_name in runs:
+        is_bigger = False
+        if other_name != name:
+            for d in range(len(direction)):
+                if runs[name][d]*direction[d]>=runs[other_name][d]*direction[d]:
+                    is_bigger = True
+            if not is_bigger:
+                pareto = False
+    if pareto:
+        pareto_frontier.append(name)
+
+print(pareto_frontier)

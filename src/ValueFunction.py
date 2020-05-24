@@ -341,7 +341,7 @@ class PathBasedNN(NeuralNetworkBased):
 
         inputs = [path_location_input, delay_input, current_time_input,
                   other_agents_input, num_requests_input]
-        if Settings.has_value("profit_node") and Settings.get_value("profit_node"):
+        if Settings.has_value("nn_inputs") and "profit_z" in Settings.get_value("nn_inputs"):
             inputs.append(agent_profit_input)
         
 
@@ -422,7 +422,10 @@ class PathBasedNN(NeuralNetworkBased):
             input["path_location_input"].append(path_location_input)
             input["other_agents_input"].append(other_agents_input)
 
-            if Settings.has_value("profit_node") and Settings.get_value("profit_node"):
+
+            if Settings.has_value("nn_inputs") and "profit_z" in Settings.get_value("nn_inputs"):
+                print("Agent profit input {}".format(agent_profit_input))
+                print(self.envt.driver_profits)
                 input["agent_profit_input"].append(agent_profit_input)
 
         return input

@@ -8,7 +8,10 @@ def read_from_file(file_name):
     for line in f:
         if line!='':
             name = line.split(":")[0]
-            value = eval(line.split(": ")[1])
+            if "," in line.split(": ")[1]:
+                value = line.split(": ")[1].split(",")
+            else:
+                value = eval(line.split(": ")[1])
             settings_list[name] = value
 
     print("Finished reading settings")
