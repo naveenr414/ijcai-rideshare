@@ -306,7 +306,7 @@ if __name__ == '__main__':
         # Write our pickled resutls 
         if write_to_file:
             epoch_data['settings'] = Settings.settings_list
-            file_name = str(datetime.datetime.now()).split(".")[0].replace(" ","_")
+            file_name = str(datetime.datetime.now()).split(".")[0].replace(" ","_").replace(":","")
             pickle.dump(epoch_data,open("../logs/epoch_data/"+file_name+".pkl","wb"))
             
         value_function.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)

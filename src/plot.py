@@ -67,7 +67,6 @@ def plot_average_wait_time_box(data):
 
 def plot_service_rates(data_list,labels):
     service_rates = [np.sum(i['epoch_requests_accepted'])/np.sum(i['epoch_requests_seen']) for i in data_list]
-    print(service_rates)
     plt.bar(list(range(len(labels))),service_rates,tick_label=labels)
 
 def plot_KL_divergences(data_list):
@@ -101,23 +100,6 @@ def payment_by_driver(data,num_drivers,n=-1):
             driver_pays[j]+=k
 
     return driver_pays
-
-def gini(data,num_drivers,n=-1):
-    
-    payment = payment_by_driver(data,num_drivers,n)
-    mu = np.sum([i for i in payment.values()])/num_drivers
-    
-    a = 0
-    for i in range(num_drivers):
-        for j in range(num_drivers):
-            a+=abs(payment[i]-payment[j])
-
-
-    s =  a/(2*num_drivers**2 * mu)
-    return s
-
-def total_profit(data):
-    return np.sum([sum([j[1] for j in i]) for i in data['epoch_each_agent_profit']])
 
 def entropy(data,num_drivers):
     payment_driver = np.array(list((payment_by_driver(data,num_drivers).values())))
@@ -183,7 +165,6 @@ def plot_most_common_acceptance(data,n=10):
 def plot_lorenz(data,num_drivers):
     payment = payment_by_driver(data,num_drivers)
     X = np.array(sorted([i for i in payment.values()]))
-    print(np.sum(X),np.var(X))
     X_lorenz = X.cumsum()/X.sum()
     X_lorenz = np.insert(X_lorenz, 0, 0)
     X_lorenz[0], X_lorenz[-1]
@@ -256,15 +237,10 @@ def plot_request_locations(data,accepted=False):
     
     bound = ((min_lon, max_lon, min_lat, max_lat))
     map_bound = ((-74.05, -73.948, 40.682, 40.79))
-    # DO NOT MODIFY THIS BLOCK
-    # Read in the base map and setting up subplot
-    # DO NOT MODIFY THESE LINES
     basemap = plt.imread('../data/ny/ny.jpg')    
 
     plt.xlim(map_bound[0],map_bound[1])
     plt.ylim(map_bound[2],map_bound[3])
-    # DO NOT MODIFY THESE LINES
-    # Create the hexbin plot
     plt.scatter('longitude', 'latitude', data = rated_geo, s=rated_geo['score']**.5)
     #hexbin = plt.hexbin('longitude', 'latitude', data = rated_geo, C=rated_geo['score'], gridsize = 200)
     #plt.colorbar(hexbin, orientation='vertical').set_label('Inspection Count')
@@ -272,7 +248,6 @@ def plot_request_locations(data,accepted=False):
     plt.ylabel('Latitude');
     plt.title('Geospatial Density of Scores of Rated Restaurants');
     # Setting aspect ratio and plotting the hexbins on top of the base map layer
-    # DO NOT MODIFY THIS LINE
     plt.imshow(basemap, zorder=0, extent = map_bound, aspect= 'equal');
 
 def plot_request_rejections(data):
@@ -360,28 +335,47 @@ def plot_entropy_profit_pareto(data_list,num_drivers):
     plt.scatter([i[0] for i in points],[i[1] for i in points])
 
     for i,name in enumerate(data_list):
-        plt.annotate(name,points[i])    
+        plt.annotate(name,points[i])
 
-loc = "../logs/epoch_data/lambda+entropy"
+# Driver Utility  
+def total_profit(data):
+    return np.sum([sum([j[1] for j in i]) for i in data['epoch_each_agent_profit']])
 
-all_files = glob.glob(loc+"/*.pkl")
-all_pkl = {}
+# Driver Fairness
+def gini(data,n=-1):
+    num_drivers = data['settings']['num_agents']
+    payment = payment_by_driver(data,num_drivers,n)
+    mu = np.sum([i for i in payment.values()])/num_drivers
+    
+    a = 0
+    for i in range(num_drivers):
+        for j in range(num_drivers):
+            a+=abs(payment[i]-payment[j])
 
-names = {'day_11_epoch_data_agents1000_value6_training0_testing1_lambda0.5.pkl':'Two Sided',
-         'day_11_epoch_data_agents1000_value1_training0_testing1_model2.pkl':'NeurADP',
-         'day_11_epoch_data_agents1000_value4_training0_testing1.pkl':'Nearest'}
 
-for i in all_files:
-    name = i.replace(loc+"\\","")
-    if "value2" in name:
-        all_pkl["value2"] = get_data(i)
-    elif "2020" in i:
-        data = get_data(i)
-        name = data["settings"]["value_num"]
-        all_pkl[name] = data
+    s =  a/(2*num_drivers**2 * mu)
+    return s
 
-for i in all_pkl:
-    current_label = i
-    plot_lorenz(all_pkl[i],1000)
-plt.legend()
-plt.show()
+# Rider utility 
+def average_dropoff_delay(data):
+    avg_time = np.sum(data['epoch_dropoff_delay'])/np.sum(data['epoch_requests_completed'])
+    return avg_time
+    
+
+loc_list = ["../logs/epoch_data/variance","../logs/epoch_data/baseline"]
+
+all_files = []
+for loc in loc_list:
+    all_files+=glob.glob(loc+"/*.pkl")
+
+all_pickles = [pickle.loads(open(i,"rb").read()) for i in all_files]
+
+for data in all_pickles:
+    if "lambda" in data["settings"]:
+        print(data["settings"]["value_num"],data["settings"]["lambda"])
+    else:
+        print(data["settings"]["value_num"])
+    print(total_profit(data))
+    print(gini(data))
+    print(average_dropoff_delay(data))
+    print()
