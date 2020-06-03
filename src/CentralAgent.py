@@ -137,7 +137,7 @@ class CentralAgent(object):
                 if Settings.get_value("add_constraints") == "max":
                     model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))>=(upper_bound*0.5-200))
                 elif Settings.get_value("add_constraints") == "min":
-                    model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))<=(lower_bound*2+200))
+                    model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))<=(lower_bound*Settings.get_value("lambda")+200))
 
 
         # Create Objective

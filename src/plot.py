@@ -8,6 +8,7 @@ import pandas as pd
 import glob
 from scipy.special import kl_div
 from scipy.spatial.distance import cosine
+from sklearn.cluster import KMeans
 
 import matplotlib as mpl
 mpl.rcParams['axes.prop_cycle'] = mpl.cycler(color=['#377eb8', '#ff7f00', '#4daf4a','#f781bf', '#a65628', '#984ea3','#999999', '#e41a1c', '#dede00']) 
@@ -365,7 +366,47 @@ def average_dropoff_delay(data):
 def requests_completed(data):
     return np.sum(data['epoch_requests_completed'])/np.sum(data['epoch_requests_seen'])
 
-loc_list = ["../logs/epoch_data/variance","../logs/epoch_data/baseline"]
+# Rider fairness 
+def rider_fairness(data,clusters=10):
+    zone_lat_long = open("../data/ny/zone_latlong.csv").read().split("\n")
+    d = {}
+    for i in zone_lat_long:
+        if i!='':
+            a,b,c = i.split(",")
+            d[a] = (float(b),float(c))
+
+    coords = [d[i] for i in d]
+    regions = KMeans(n_clusters=clusters).fit(coords)
+    labels = regions.labels_
+    centers = regions.cluster_centers_
+
+    loc_region = {}
+    loc_requests = {}
+    loc_acceptances = {}
+
+    for i in range(len(labels)):
+        loc_region[i] = labels[i]
+
+    for i in set(labels):
+        loc_requests[i] = 0
+        loc_acceptances[i] = 0
+
+    for i in data['epoch_locations_all']:
+        for j in i:
+            loc_requests[loc_region[j]]+=1
+
+    for i in data['epoch_locations_accepted']:
+        for j in i:
+            loc_acceptances[loc_region[j]]+=1
+
+    success = []
+    for i in loc_requests:
+        success.append(loc_acceptances[i]/loc_requests[i])
+
+    return np.std(success)
+    
+
+loc_list = ["../logs/epoch_data/entropy","../logs/epoch_data/variance","../logs/epoch_data/baseline"]
 
 all_files = []
 for loc in loc_list:
@@ -379,10 +420,19 @@ for data in all_pickles:
     name = str(data["settings"]["value_num"])
     if "lambda" in data["settings"]:
         name+="_"+str(data["settings"]["lambda"])
+    if "training_days" in data["settings"]:
+        name+="_"+str(data["settings"]["training_days"])
+    if "nn_inputs" in data["settings"]:
+        name+="_nn"
 
-    runs[name] = (total_profit(data),gini(data),average_dropoff_delay(data),requests_completed(data))  
+    print(data["settings"])
 
-direction = [1,-1,-1,1]
+    runs[name] = (total_profit(data),gini(data),average_dropoff_delay(data),requests_completed(data),rider_fairness(data))  
+
+variable_names = ["profit","gini","dropoff delay","requests completion","completion variance"]
+direction = [1,-1,-1,1,-1]
+
+print("Variable names {}".format(variable_names))
 
 pareto_frontier = []
 for name in runs:
@@ -398,4 +448,5 @@ for name in runs:
     if pareto:
         pareto_frontier.append(name)
 
-print(pareto_frontier)
+for i in pareto_frontier:
+    print(i,runs[i])
