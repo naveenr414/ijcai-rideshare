@@ -1,7 +1,8 @@
 training_days: 0
 testing_days: 1
-num_agents: 2
-value_num: 10
+num_agents: 5
+value_num: 11
 write_file: True
 print_verbose: True
-lambda: 0
+lambda: 1.25
+pickup_delay: 600

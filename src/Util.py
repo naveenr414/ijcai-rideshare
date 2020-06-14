@@ -20,6 +20,34 @@ def change_entropy(envt,action,driver_num):
     N = len(envt.driver_profits)
     R = change_profit(envt,action)   
     return np.log((ybar+R/N)/ybar * ((y+R)/y)**(-1/N))
+
+def change_entropy_rider(envt,action,driver_num):
+    percent_success = [envt.success_region[i]/envt.requests_region[i] for i in range(len(envt.requests_region))]
+    new_requests = [0 for i in range(len(envt.requests_region))]
+
+    for i in action.requests:
+        new_requests[envt.labels[i.pickup]]+=1
+    
+    current_entropy = get_entropy_list(percent_success)
+    percent_success_new = [(envt.success_region[i]+new_requests[i])/(envt.requests_region[i]+new_requests[i]) for i in range(len(envt.requests_region))]
+    new_entropy = get_entropy_list(percent_success_new)
+
+    change_entropy = new_entropy-current_entropy
+    return change_entropy
+
+def change_variance_rider(envt,action,driver_num):
+    percent_success = [envt.success_region[i]/envt.requests_region[i] for i in range(len(envt.requests_region))]
+    new_requests = [0 for i in range(len(envt.requests_region))]
+
+    for i in action.requests:
+        new_requests[envt.labels[i.pickup]]+=1
+    
+    current_variance = np.var(percent_success)
+    percent_success_new = [(envt.success_region[i]+new_requests[i])/(envt.requests_region[i]+new_requests[i]) for i in range(len(envt.requests_region))]
+    new_variance = np.var(percent_success_new)
+
+    change_variance = new_variance-current_variance
+    return change_variance
     
 def get_entropy(envt):
     driver_profits = np.array(envt.driver_profits)+10**-6
@@ -30,6 +58,16 @@ def get_entropy(envt):
         return -1/(N) * np.sum(np.log(driver_profits/ybar))
     else:
         return 0
+
+def get_entropy_list(l):
+    ybar = np.mean(l)
+    N = len(l)
+    
+    if ybar!=0:
+        return -1/(N) * np.sum(np.log(l/ybar))
+    else:
+        return 0
+    
 
 def change_variance(envt,action,driver_num):
     R = change_profit(envt,action)

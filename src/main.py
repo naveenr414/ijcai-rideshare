@@ -134,6 +134,9 @@ def run_epoch(envt,
 
         ret_dictionary['epoch_locations_all'].append([i.pickup for i in current_requests])
 
+        for i in current_requests:
+            envt.requests_region[envt.labels[i.pickup]]+=1
+
         # Get feasible actions
         feasible_actions_all_agents = oracle.get_feasible_actions(agents, current_requests)
 
@@ -163,11 +166,14 @@ def run_epoch(envt,
         for action, _ in scored_final_actions:
             reward = len(action.requests)
             locations_served += [request.pickup for request in action.requests]
+            envt.success_region[envt.labels[request.pickup]]+=1
             rewards.append(reward)
             total_value_generated += reward
 
         if Settings.has_value("print_verbose") and Settings.get_value("print_verbose"):
             print("Reward for epoch: {}".format(sum(rewards)))
+            percent_success = [envt.success_region[i]/envt.requests_region[i] for i in range(len(envt.requests_region))]
+            print("Success rates are {}".format(percent_success))
 
         profits,agent_profits = get_profit_distribution(scored_final_actions)            
         for i,j in agent_profits:
@@ -251,6 +257,9 @@ if __name__ == '__main__':
     num_agents = Settings.get_value("num_agents")
     write_to_file = Settings.get_value("write_file")
     value_num = Settings.get_value("value_num")
+
+    if Settings.has_value("pickup_delay"):
+        PICKUP_DELAY = Settings.get_value("pickup_delay")
 
     TRAINING_DAYS: List[int] = list(range(3, 3+training_days))
     TEST_DAYS: List[int] = list(range(11, 11+testing_days))

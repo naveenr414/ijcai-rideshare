@@ -530,7 +530,26 @@ def lambda_variance_score(envt,action,agent,driver_num):
     variance = Util.change_variance(envt,action,driver_num)
     lamb = Settings.get_value("lambda")
 
-    return profit-lamb*variance 
+    return profit-lamb*variance
+
+def lambda_entropy_rider_score(envt,action,agent,driver_num):
+    profit = Util.change_profit(envt,action)
+    entropy = Util.change_entropy_rider(envt,action,driver_num)
+    lamb = Settings.get_value("lambda")
+
+    if np.isfinite(entropy):
+        score = profit-lamb*entropy
+    else:
+        score = profit
+
+    return score
+
+def lambda_variance_rider_score(envt,action,agent,driver_num):
+    profit = Util.change_profit(envt,action)
+    variance = Util.change_variance_rider(envt,action,driver_num)
+    lamb = Settings.get_value("lambda")
+
+    return profit - lamb*variance
 
 def immideate_reward_score(envt,action,agent,driver_num):
     immediate_reward = sum([request.value for request in action.requests])
@@ -566,6 +585,15 @@ def num_to_value_function(envt,num):
         value_function = GreedyValueFunction(envt,lambda_variance_score)
     elif num == 10:
         value_function = PathBasedNN(envt,load_model_loc=model_loc)
+    elif num == 11:
+        value_function = GreedyValueFunction(envt,lambda_entropy_rider_score)
+    elif num == 12:
+        value_function = PathBasedNN(envt,load_model_loc=model_loc)
+    elif num == 13:
+        value_function = GreedyValueFunction(envt,lambda_variance_rider_score)
+    elif num == 14:
+        value_function = PathBasedNN(envt,load_model_loc=model_loc)
+
 
     return value_function
 

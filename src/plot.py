@@ -9,11 +9,29 @@ import glob
 from scipy.special import kl_div
 from scipy.spatial.distance import cosine
 from sklearn.cluster import KMeans
+import pickle
 
 import matplotlib as mpl
 mpl.rcParams['axes.prop_cycle'] = mpl.cycler(color=['#377eb8', '#ff7f00', '#4daf4a','#f781bf', '#a65628', '#984ea3','#999999', '#e41a1c', '#dede00']) 
 
 current_label = ""
+
+"""Loading the KMeans regions"""
+zone_lat_long = open("../data/ny/zone_latlong.csv").read().split("\n")
+d = {}
+for i in zone_lat_long:
+    if i!='':
+        a,b,c = i.split(",")
+        d[a] = (float(b),float(c))
+
+coords = [d[i] for i in d]
+labels = pickle.loads(open("../data/ny/labels.pkl","rb").read())
+
+loc_region = {}
+
+for i in range(len(labels)):
+    loc_region[i] = labels[i]
+
 
 def running_mean(x, N):
     averages = np.convolve(x, np.ones((N,))/N, mode='valid')
@@ -320,6 +338,30 @@ def get_data(file_name=''):
 
     return day_0
 
+def plot_regions(data,clusters=10):
+    rated_geo = pd.read_csv("../data/ny/zone_latlong.csv",header=None,names=['zone','longitude','latitude'])
+    min_lon = rated_geo['longitude'].min()
+    max_lon = rated_geo['longitude'].max()
+    min_lat = rated_geo['latitude'].min()
+    max_lat = rated_geo['latitude'].max()
+
+    bound = ((min_lon, max_lon, min_lat, max_lat))
+    map_bound = ((-74.05, -73.948, 40.682, 40.79))
+    basemap = plt.imread('../data/ny/ny.jpg')    
+
+    plt.xlim(map_bound[0],map_bound[1])
+    plt.ylim(map_bound[2],map_bound[3])
+
+    colors = ["red","blue","black","white","green","orange","yellow","brown","pink","grey"]
+    for i in range(len(coords)):
+        label = labels[i]
+        plt.scatter(coords[i][0],coords[i][1],c=colors[label])
+    plt.xlabel('Longitude');
+    plt.ylabel('Latitude');
+    plt.title('Geospatial Density of Scores of Rated Restaurants');
+    plt.imshow(basemap, zorder=0, extent = map_bound, aspect= 'equal');
+
+
 def KL(a, b):
     a = np.asarray(a, dtype=np.float)
     b = np.asarray(b, dtype=np.float)
@@ -366,26 +408,21 @@ def average_dropoff_delay(data):
 def requests_completed(data):
     return np.sum(data['epoch_requests_completed'])/np.sum(data['epoch_requests_seen'])
 
+def get_entropy_list(l):
+    ybar = np.mean(l)
+    N = len(l)
+    
+    if ybar!=0:
+        return -1/(N) * np.sum(np.log(l/ybar))
+    else:
+        return 0
+    
+
+
 # Rider fairness 
 def rider_fairness(data,clusters=10):
-    zone_lat_long = open("../data/ny/zone_latlong.csv").read().split("\n")
-    d = {}
-    for i in zone_lat_long:
-        if i!='':
-            a,b,c = i.split(",")
-            d[a] = (float(b),float(c))
-
-    coords = [d[i] for i in d]
-    regions = KMeans(n_clusters=clusters).fit(coords)
-    labels = regions.labels_
-    centers = regions.cluster_centers_
-
-    loc_region = {}
     loc_requests = {}
     loc_acceptances = {}
-
-    for i in range(len(labels)):
-        loc_region[i] = labels[i]
 
     for i in set(labels):
         loc_requests[i] = 0
@@ -403,50 +440,199 @@ def rider_fairness(data,clusters=10):
     for i in loc_requests:
         success.append(loc_acceptances[i]/loc_requests[i])
 
+    print(np.argmax(success),success[np.argmax(success)])
+
+    print("Var Success",np.var(success))
+    print("Entropy Success",get_entropy_list(success))
+
+    num_drivers = data['settings']['num_agents']
+    profits = list(payment_by_driver(data,num_drivers,-1).values())
+
+    print("Len profits {}".format(len(profits)))
+    print("Var profits {}".format(np.var(profits)))
+    print("Entropy success",get_entropy_list(profits))
+
+    print("Ratio var {}".format(np.var(success)/np.var(profits)))
+    print("Ratio entropy {}".format(get_entropy_list(success)/get_entropy_list(profits)))
+
     return np.std(success)
-    
 
-loc_list = ["../logs/epoch_data/entropy","../logs/epoch_data/variance","../logs/epoch_data/baseline"]
+def get_pickle(file_name):
+    return pickle.loads(open(file_name,"rb").read())
 
-all_files = []
-for loc in loc_list:
-    all_files+=glob.glob(loc+"/*.pkl")
-
-all_pickles = [pickle.loads(open(i,"rb").read()) for i in all_files]
-
-runs = {}
-
-for data in all_pickles:
+def get_name(data):
     name = str(data["settings"]["value_num"])
     if "lambda" in data["settings"]:
-        name+="_"+str(data["settings"]["lambda"])
+        name+="_"+str(round(data["settings"]["lambda"],1))
     if "training_days" in data["settings"]:
         name+="_"+str(data["settings"]["training_days"])
     if "nn_inputs" in data["settings"]:
         name+="_nn"
+    return name
 
-    print(data["settings"])
+def get_coords(data):
+    return [total_profit(data),1-gini(data),1/average_dropoff_delay(data),requests_completed(data),1/rider_fairness(data)]
 
-    runs[name] = (total_profit(data),gini(data),average_dropoff_delay(data),requests_completed(data),rider_fairness(data))  
+def get_two_axis(all_pickles,axis_one,axis_two):
+    a = []
+    b = []
+    for i in all_pickles:
+        c = get_coords(i)
+        a.append(c[axis_one])
+        b.append(c[axis_two])
 
-variable_names = ["profit","gini","dropoff delay","requests completion","completion variance"]
-direction = [1,-1,-1,1,-1]
+    return a,b
 
-print("Variable names {}".format(variable_names))
+def get_pareto(axis_one,axis_two,labels=[]):
+    pareto = []
+    for i in range(len(axis_one)):
+        pareto.append(True)
+        for j in range(len(axis_one)):
+            if(i!=j and axis_one[j]>=axis_one[i] and axis_two[j]>=axis_two[i]):
+                pareto[i] = False
 
-pareto_frontier = []
-for name in runs:
-    pareto = True
-    for other_name in runs:
-        is_bigger = False
-        if other_name != name:
-            for d in range(len(direction)):
-                if runs[name][d]*direction[d]>=runs[other_name][d]*direction[d]:
-                    is_bigger = True
-            if not is_bigger:
-                pareto = False
-    if pareto:
-        pareto_frontier.append(name)
+    axis_one = [a for i,a in enumerate(axis_one) if pareto[i]]
+    axis_two = [a for i,a in enumerate(axis_two) if pareto[i]]
+    labels = [a for i,a in enumerate(labels) if pareto[i]]
 
-for i in pareto_frontier:
-    print(i,runs[i])
+    return axis_one,axis_two,labels
+
+
+def plot_driver(all_pickles):
+    profit, inverse_inequality = get_two_axis(all_pickles,0,1)
+    labels = [get_name(i) for i in all_pickles]
+
+    plt.scatter(profit,inverse_inequality)
+    plt.xlabel("Total Profit")
+    plt.ylabel("1-Gini Coefficient")
+    plt.title("Driver side all")
+
+    for i in range(len(all_pickles)):
+        plt.annotate(labels[i],(profit[i],inverse_inequality[i]))
+
+def plot_rider(all_pickles):
+    profit, inverse_inequality = get_two_axis(all_pickles,3,4)
+    labels = [get_name(i) for i in all_pickles]
+
+    plt.scatter(profit,inverse_inequality)
+    plt.title("Rider side all")
+    plt.xlabel("Requests Completed")
+    plt.ylabel("1/std of location distribution")
+
+    for i in range(len(all_pickles)):
+        plt.annotate(labels[i],(profit[i],inverse_inequality[i]))
+
+def plot_driver_pareto(all_pickles):
+    profit, inverse_inequality = get_two_axis(all_pickles,0,1)
+    labels = [get_name(i) for i in all_pickles]
+
+    profit,inverse_inequality,labels = get_pareto(profit,inverse_inequality,labels)
+    plt.scatter(profit,inverse_inequality)
+    plt.title("Pareto driver side")
+    plt.xlabel("Total Profit")
+    plt.ylabel("1-Gini Coefficient")
+
+    for i in range(len(profit)):
+        plt.annotate(labels[i],(profit[i],inverse_inequality[i]))
+
+def plot_rider_pareto(all_pickles):
+    profit, inverse_inequality = get_two_axis(all_pickles,3,4)
+    labels = [get_name(i) for i in all_pickles]
+
+    profit,inverse_inequality,labels = get_pareto(profit,inverse_inequality,labels)
+    plt.scatter(profit,inverse_inequality)
+    plt.title("Pareto rider side")
+    plt.xlabel("Requests Completed")
+    plt.ylabel("1/std of location distribution")
+
+    for i in range(len(profit)):
+        plt.annotate(labels[i],(profit[i],inverse_inequality[i]))
+
+
+
+def plot_driver_pareto_within_valuenum(all_pickles):
+    profit = []
+    inverse_inequality = []
+    labels = [get_name(i) for i in all_pickles]
+    for i in range(len(all_pickles)):
+        data = all_pickles[i]
+        profit.append(total_profit(data))
+        inverse_inequality.append(1-gini(data))
+
+    pareto = []
+    for i in range(len(profit)):
+        pareto.append(True)
+        for j in range(len(profit)):
+            if(i!=j and profit[j]>=profit[i] and inverse_inequality[j]>=inverse_inequality[i] and all_pickles[i]["settings"]["value_num"] == all_pickles[j]["settings"]["value_num"]):
+                pareto[i] = False
+
+    profit = [a for i,a in enumerate(profit) if pareto[i]]
+    inverse_inequality = [a for i,a in enumerate(inverse_inequality) if pareto[i]]
+    labels = [a for i,a in enumerate(labels) if pareto[i]]
+
+    plt.title("Pareto driver within value number")
+    plt.scatter(profit,inverse_inequality)
+    plt.xlabel("Total Profit")
+    plt.ylabel("1-Gini Coefficient")
+
+    for i in range(len(profit)):
+        plt.annotate(labels[i],(profit[i],inverse_inequality[i]))
+
+def plot_rider_pareto_within_valuenum(all_pickles):
+    profit = []
+    inverse_inequality = []
+    labels = [get_name(i) for i in all_pickles]
+    for i in range(len(all_pickles)):
+        data = all_pickles[i]
+        profit.append(requests_completed(data))
+        inverse_inequality.append(1/rider_fairness(data))
+
+    pareto = []
+    for i in range(len(profit)):
+        pareto.append(True)
+        for j in range(len(profit)):
+            if(i!=j and profit[j]>=profit[i] and inverse_inequality[j]>=inverse_inequality[i] and all_pickles[i]["settings"]["value_num"] == all_pickles[j]["settings"]["value_num"]):
+                pareto[i] = False
+
+    profit = [a for i,a in enumerate(profit) if pareto[i]]
+    inverse_inequality = [a for i,a in enumerate(inverse_inequality) if pareto[i]]
+    labels = [a for i,a in enumerate(labels) if pareto[i]]
+
+    plt.title("Pareto rider within value number")
+    plt.scatter(profit,inverse_inequality)
+    plt.xlabel("Requests Completed")
+    plt.ylabel("1/std of location distribution")
+
+    for i in range(len(profit)):
+        plt.annotate(labels[i],(profit[i],inverse_inequality[i]))
+
+
+def move_from_unknown():
+    all_files = glob.glob("../logs/epoch_data/unknown/*.pkl")
+    all_pickles = [get_pickle(i) for i in all_files]
+
+    for i in range(len(all_pickles)):
+        settings = all_pickles[i]["settings"]
+        file_name = all_files[i].split("\\")[-1]
+        if settings["value_num"] in [7,8]:
+            print("mv {} ../entropy".format(file_name))
+        elif settings["value_num"] in [9,10]:
+            print("mv {} ../variance".format(file_name))
+        elif settings["value_num"] == 2 and settings["add_constraints"] == "min":
+            print("mv {} ../income_hard".format(file_name))
+        elif settings["value_num"] in [1,2,4] and "add_constraints" not in settings:
+            print("mv {} ../baseline".format(file_name))
+
+
+    
+
+loc_list = ["../logs/epoch_data/variance","../logs/epoch_data/entropy","../logs/epoch_data/baseline","../logs/epoch_data/income_hard"]
+all_files = []
+
+for i in loc_list:
+    all_files+=glob.glob(i+"/*.pkl")
+
+all_pickles = [get_pickle(i) for i in all_files]
+for i in all_pickles:
+    rider_fairness(i)
+plot_regions(all_pickles[0])

@@ -14,7 +14,8 @@ import re
 from random import randint, random
 import numpy as np
 import Settings
-import Util 
+import Util
+import pickle
 
 class Environment(metaclass=ABCMeta):
     """Defines a class for simulating the Environment for the RL agent"""
@@ -30,9 +31,12 @@ class Environment(metaclass=ABCMeta):
         self.START_EPOCH = START_EPOCH
         self.STOP_EPOCH = STOP_EPOCH
         self.DATA_DIR = DATA_DIR
+        self.NUM_REGIONS = 10
         
         self.driver_utilities = [0 for i in range(NUM_AGENTS)]
         self.driver_profits = [0 for i in range(NUM_AGENTS)]
+        self.requests_region = [0 for i in range(self.NUM_REGIONS)]
+        self.success_region = [0 for i in range(self.NUM_REGIONS)]
         self.num_days_trained = 0
         self.recent_request_history: Deque[Request] = deque(maxlen=self.REQUEST_HISTORY_SIZE)
         self.current_time: float = 0.0
@@ -189,6 +193,20 @@ class Environment(metaclass=ABCMeta):
             variance = Util.change_variance(self,action,driver_num)
             lamb = Settings.get_value("lambda")
 
+            return profit - lamb*variance
+        elif Settings.get_value("value_num") == 12:
+            profit = Util.change_profit(self,action)
+            entropy = Util.change_entropy_rider(self,action,driver_num)
+            lamb = Settings.get_value("lambda")
+            if np.isfinite(entropy):
+                return profit - lamb * entropy
+            else:
+                return profit
+        elif Settings.get_value("value_num") == 14:
+            profit = Util.change_profit(self,action)
+            variance = Util.change_variance_rider(self,action,driver_num)
+            lamb = Settings.get_value("lambda")
+
             return profit - lamb*variance 
         else:
             return sum([request.value for request in action.requests])            
@@ -216,6 +234,8 @@ class NYEnvironment(Environment):
 
         SHORTESTPATH_FILE: str = self.DATA_DIR + 'zone_path.csv'
         self.shortest_path = read_csv(SHORTESTPATH_FILE, header=None).values
+
+        self.labels = pickle.loads(open("../data/ny/labels.pkl","rb").read())
 
         IGNOREDZONES_FILE: str = self.DATA_DIR + 'ignorezonelist.txt'
         self.ignored_zones = read_csv(IGNOREDZONES_FILE, header=None).values.flatten()
