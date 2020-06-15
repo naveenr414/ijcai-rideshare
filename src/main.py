@@ -166,7 +166,8 @@ def run_epoch(envt,
         for action, _ in scored_final_actions:
             reward = len(action.requests)
             locations_served += [request.pickup for request in action.requests]
-            envt.success_region[envt.labels[request.pickup]]+=1
+            for request in action.requests:
+                envt.success_region[envt.labels[request.pickup]]+=1
             rewards.append(reward)
             total_value_generated += reward
 
