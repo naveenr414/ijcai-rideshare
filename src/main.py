@@ -108,7 +108,10 @@ def run_epoch(envt,
 
     # ITERATING OVER TIMESTEPS
     print("DAY: {}".format(DAY))
-    request_generator = envt.get_request_batch(DAY)
+    down_sample = 1
+    if Settings.has_value("down_sample") and Settings.get_value("down_sample"):
+        down_sample = Settings.get_value("down_sample")
+    request_generator = envt.get_request_batch(DAY,downsample=down_sample)
     total_value_generated = 0
     num_total_requests = 0
 
@@ -173,8 +176,6 @@ def run_epoch(envt,
 
         if Settings.has_value("print_verbose") and Settings.get_value("print_verbose"):
             print("Reward for epoch: {}".format(sum(rewards)))
-            percent_success = [envt.success_region[i]/envt.requests_region[i] for i in range(len(envt.requests_region))]
-            print("Success rates are {}".format(percent_success))
 
         profits,agent_profits = get_profit_distribution(scored_final_actions)            
         for i,j in agent_profits:

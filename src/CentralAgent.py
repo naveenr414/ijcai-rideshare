@@ -11,6 +11,14 @@ from docplex.mp.model import Model  # type: ignore
 from docplex.mp.linear import Var  # type: ignore
 from random import gauss, shuffle, randint, random
 import numpy as np
+import time
+from math import factorial
+from copy import deepcopy
+import random
+
+actions_per = []
+users_per = []
+time_per = []
 
 
 class CentralAgent(object):
@@ -55,9 +63,10 @@ class CentralAgent(object):
 
         return final_actions
 
-    def _choose_actions_ILP(self, agent_action_choices: List[List[Tuple[Action, float]]], get_noise: Callable[[Var], float]=lambda x: 0) -> List[Tuple[Action, float]]:
+    def get_score_ILP(self, agent_action_choices: List[List[Tuple[Action, float]]], which_to_choose: str, get_noise: Callable[[Var], float]=lambda x: 0) -> List[Tuple[Action, float]]:
         # Model as ILP
         model = Model()
+
 
         # For converting Action -> action_id and back
         action_to_id: Dict[Action, int] = {}
@@ -68,18 +77,27 @@ class CentralAgent(object):
         # For constraint 2
         requests: Set[Request] = set()
 
+        start_time = time.time()
+        total_agents = 0
+
         # Create decision variables and their coefficients in the objective
         # There is a decision variable for each (Action, Agent).
         # The coefficient is the value associated with the decision variable
         decision_variables: Dict[int, Dict[int, Tuple[Any, float]]] = {}
         for agent_idx, scored_actions in enumerate(agent_action_choices):
+            if(len(scored_actions)>1):
+                total_agents+=1
+                
             
             for action, value in scored_actions:
                 # Convert action -> id if it hasn't already been done
                 if action not in action_to_id:
                     action_to_id[action] = current_action_id
                     id_to_action[current_action_id] = action
-                    action_profit[current_action_id] = Util.change_profit(self.envt,action)
+                    if which_to_choose[total_agents-1] == '0':
+                        action_profit[current_action_id] = 0
+                    else:
+                        action_profit[current_action_id] = Util.change_profit(self.envt,action)
                     current_action_id += 1
 
                     action_id = current_action_id - 1
@@ -96,7 +114,11 @@ class CentralAgent(object):
                 variable = model.binary_var(name='x{},{}'.format(action_id, agent_idx))
 
                 # Save to decision_variable data structure
-                decision_variables[action_id][agent_idx] = (variable, value)
+                if which_to_choose[total_agents-1] == '0':
+                    decision_variables[action_id][agent_idx] = (variable, 0)
+                else:
+                    decision_variables[action_id][agent_idx] = (variable, value)
+    
 
         # Create Constraint 1: Only one action per Agent
         for agent_idx in range(len(agent_action_choices)):
@@ -168,6 +190,213 @@ class CentralAgent(object):
             assert scored_final_action is not None
             final_actions.append(scored_final_action)
 
+        total_score = sum(i[1] for i in final_actions)        
+
+        
+        return total_score
+
+    def shapley(self,all_values,num,total_nums):
+        tot = 0
+        for i in range(2**(total_nums-1)):
+            bin_others = bin(i)[2:]
+            if(len(bin_others)<total_nums-1):
+                bin_others = '0'*(total_nums-1-len(bin_others))+bin_others
+            S = bin_others.count('1')
+            coeff = factorial(S)*factorial(total_nums-S-1)/factorial(total_nums)
+            num_with = bin_others[:num]+'1'+bin_others[num:]
+            num_without = bin_others[:num]+'0'+bin_others[num:]
+            print(num_with,num_without,num)
+            tot+=(all_values[num_with]-all_values[num_without])*1/(2**(total_nums-1))
+        return tot
+
+    def truncated_shapley(self,true_shapley,total_nums,agent_action_choices,get_noise):
+        predicted_shapley = [0 for i in range(total_nums)]
+        errors = []
+        for i in range(100):
+            nums = [0 for k in range(total_nums)]
+            permuted = [k for k in range(total_nums)]
+            random.shuffle(permuted)
+            previous_value = 0
+
+            for j in permuted:
+                new = deepcopy(nums)
+                new[j] = 1
+                new_value = self.get_score_ILP(agent_action_choices,''.join([str(k) for k in new]),get_noise)
+                print("New Value {} Previous Value {} Choices {}".format(new_value,previous_value,''.join([str(k) for k in new])))
+                predicted_shapley[j] = predicted_shapley[j]*(i/(i+1)) + 1/(i+1) * (new_value-previous_value)
+                previous_value = new_value
+                nums = new
+                errors.append(np.linalg.norm(np.array(predicted_shapley)-np.array(true_shapley)))
+        print("Errors are {}".format(errors))
+    
+    def random_shapley(self,true_shapley,total_nums,agent_action_choices,get_noise):
+        predicted_shapley = [0 for i in range(total_nums)]
+        total_shapley = [0 for i in range(total_nums)]
+        num_runs = [0 for i in range(total_nums)]
+        errors = []
+        for i in range(60):
+            for current_num in range(total_nums):
+                nums = [random.randint(0,1) for k in range(total_nums)]
+                bigger_run = deepcopy(nums)
+                smaller_run = deepcopy(nums)
+                bigger_run[current_num] = 1
+                smaller_run[current_num] = 0
+
+                bigger_value = self.get_score_ILP(agent_action_choices,''.join([str(k) for k in bigger_run]),get_noise)
+                smaller_value = self.get_score_ILP(agent_action_choices,''.join([str(k) for k in smaller_run]),get_noise)
+                diff = bigger_value-smaller_value
+                num_runs[current_num]+=1
+                total_shapley[current_num]+=diff
+                predicted_shapley[current_num] = total_shapley[current_num]/(i+1)
+                for k in range(2):
+                    errors.append(np.linalg.norm(np.array(predicted_shapley)-np.array(true_shapley)))
+            
+        print("Errors are {}".format(errors))
+
+
+
+    def _choose_actions_ILP(self, agent_action_choices: List[List[Tuple[Action, float]]], get_noise: Callable[[Var], float]=lambda x: 0) -> List[Tuple[Action, float]]:
+        # Model as ILP
+        model = Model()
+
+
+        # For converting Action -> action_id and back
+        action_to_id: Dict[Action, int] = {}
+        id_to_action: Dict[int, Action] = {}
+        action_profit: Dict[id, float] = {}
+        current_action_id = 0
+
+        # For constraint 2
+        requests: Set[Request] = set()
+
+        start_time = time.time()
+        total_agents = 0
+
+        # Create decision variables and their coefficients in the objective
+        # There is a decision variable for each (Action, Agent).
+        # The coefficient is the value associated with the decision variable
+        decision_variables: Dict[int, Dict[int, Tuple[Any, float]]] = {}
+        for agent_idx, scored_actions in enumerate(agent_action_choices):
+            if(len(scored_actions)>1):
+                total_agents+=1
+            
+            for action, value in scored_actions:
+                # Convert action -> id if it hasn't already been done
+                if action not in action_to_id:
+                    action_to_id[action] = current_action_id
+                    id_to_action[current_action_id] = action
+                    action_profit[current_action_id] = Util.change_profit(self.envt,action)
+                    current_action_id += 1
+
+                    action_id = current_action_id - 1
+                    decision_variables[action_id] = {}
+                else:
+                    action_id = action_to_id[action]
+
+                # Update set of requests in actions
+                for request in action.requests:
+                    if request not in requests:
+                        requests.add(request)
+
+                # Create variable for (action_id, agent_id)
+                variable = model.binary_var(name='x{},{}'.format(action_id, agent_idx))
+
+                # Save to decision_variable data structure
+                decision_variables[action_id][agent_idx] = (variable, value)
+
+        # Calculate Shapley
+        """
+        if total_agents<=12:
+            # Let's brute force
+            all_vals = {}
+            for i in range(2**total_agents):
+                current_binary = ('0'*total_agents + bin(i)[2:])[-total_agents:]
+                all_vals[current_binary] = self.get_score_ILP(agent_action_choices,current_binary,get_noise)
+
+            true_shapley = []
+
+            for i in range(total_agents):
+                true_shapley.append(self.shapley(all_vals,i,total_agents))
+
+            print("Truncated")
+            self.truncated_shapley(true_shapley,total_agents,agent_action_choices,get_noise)   
+            print("Random")
+            self.random_shapley(true_shapley,total_agents,agent_action_choices,get_noise)
+        """
+
+        # Create Constraint 1: Only one action per Agent
+        for agent_idx in range(len(agent_action_choices)):
+            agent_specific_variables: List[Any] = []
+            for action_dict in decision_variables.values():
+                if agent_idx in action_dict:
+                    agent_specific_variables.append(action_dict[agent_idx])
+            model.add_constraint(model.sum(variable for variable, _ in agent_specific_variables) == 1)
+
+        # Create Constraint 2: Only one action per Request
+        for request in requests:
+            relevent_action_dicts: List[Dict[int, Tuple[Any, float]]] = []
+            for action_id in decision_variables:
+                if (request in id_to_action[action_id].requests):
+                    relevent_action_dicts.append(decision_variables[action_id])
+            model.add_constraint(model.sum(variable for action_dict in relevent_action_dicts for variable, _ in action_dict.values()) <= 1)
+
+
+        # Create Constraint 3: The difference in max and min salary < 100 + 0.2*max
+        if Settings.has_value("add_constraints"):
+            sorted_profits = sorted(self.envt.driver_profits)
+
+            lower_bound = sorted_profits[len(sorted_profits)//10]
+            upper_bound = sorted_profits[-1]
+            
+            for agent_idx in range(len(agent_action_choices)):
+                previous_profit = self.envt.driver_profits[agent_idx]
+                agent_specific_variables: List[Any] = []
+                new_profits = []
+
+                for action_id in decision_variables:
+                    action_dict = decision_variables[action_id]
+                    if agent_idx in action_dict:
+                        new_profit = action_profit[action_id]
+                        new_profits.append(new_profit)
+                        agent_specific_variables.append(action_dict[agent_idx])
+            
+                if Settings.get_value("add_constraints") == "max":
+                    model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))>=(upper_bound*0.5-200))
+                elif Settings.get_value("add_constraints") == "min":
+                    model.add_constraint(model.sum(agent_specific_variables[i][0]*(new_profits[i] + previous_profit)  for i in range(len(agent_specific_variables)))<=(lower_bound*Settings.get_value("lambda")+200))
+
+
+        # Create Objective
+        score = model.sum((value + get_noise(variable)) * variable for action_dict in decision_variables.values() for (variable, value) in action_dict.values())
+        model.maximize(score)
+
+        # Solve ILP
+        solution = model.solve()
+        assert solution  # making sure that the model doesn't fail
+
+        # Get vehicle specific actions from ILP solution
+        assigned_actions: Dict[int, int] = {}
+        for action_id, action_dict in decision_variables.items():
+            for agent_idx, (variable, _) in action_dict.items():
+                if (solution.get_value(variable) == 1):
+                    assigned_actions[agent_idx] = action_id
+
+        final_actions: List[Tuple[Action, float]] = []
+        for agent_idx in range(len(agent_action_choices)):
+            assigned_action_id = assigned_actions[agent_idx]
+            assigned_action = id_to_action[assigned_action_id]
+            scored_final_action = None
+            for action, score in agent_action_choices[agent_idx]:
+                if (action == assigned_action):
+                    scored_final_action = (action, score)
+                    break
+
+            assert scored_final_action is not None
+            final_actions.append(scored_final_action)
+
+        total_score = sum(i[1] for i in final_actions)        
+
+        
         return final_actions
 
     def _choose_actions_random(self, agent_action_choices: List[List[Tuple[Action, float]]]) -> List[Tuple[Action, float]]:
