@@ -1,3 +1,5 @@
+import sys
+
 # Configurable settings for each model 
 settings_list = {}
 
@@ -15,6 +17,20 @@ def read_from_file(file_name):
             settings_list[name] = value
 
     print("Finished reading settings")
+
+def read_from_arguments():
+    global settings_list
+    
+    f = sys.argv[1:]
+    for i in range(0,len(f),2):
+        name = f[i]
+        val = f[i+1]
+        if "," in val:
+            val = val.split(",")
+        else:
+            val = eval(val)
+        settings_list[name] = val
+    print(settings_list)
 
 def has_value(name):
     return name in settings_list
