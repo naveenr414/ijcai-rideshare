@@ -16,9 +16,9 @@ from math import factorial
 from copy import deepcopy
 import random
 
-actions_per = []
-users_per = []
-time_per = []
+one_permutation_shapley = []
+truncated_shapley = []
+random_shapley = []
 
 
 class CentralAgent(object):
@@ -37,6 +37,9 @@ class CentralAgent(object):
         super(CentralAgent, self).__init__()
         self.envt = envt
         self._choose = self._epsilon_greedy if is_epsilon_greedy else self._additive_noise
+        self.one_permutation_shapley_final = [0 for i in range(envt.NUM_AGENTS)]
+        self.truncated_shapley_final = [0 for i in range(envt.NUM_AGENTS)]
+        self.random_shapley_final = [0 for i in range(envt.NUM_AGENTS)]
 
     def choose_actions(self, agent_action_choices: List[List[Tuple[Action, float]]], is_training: bool=True, epoch_num: int=1) -> List[Tuple[Action, float]]:
         return self._choose(agent_action_choices, is_training, epoch_num)
@@ -178,8 +181,10 @@ class CentralAgent(object):
                     assigned_actions[agent_idx] = action_id
 
         final_actions: List[Tuple[Action, float]] = []
+        total_profit = 0
         for agent_idx in range(len(agent_action_choices)):
             assigned_action_id = assigned_actions[agent_idx]
+            total_profit+=action_profit[assigned_action_id]
             assigned_action = id_to_action[assigned_action_id]
             scored_final_action = None
             for action, score in agent_action_choices[agent_idx]:
@@ -188,12 +193,9 @@ class CentralAgent(object):
                     break
 
             assert scored_final_action is not None
-            final_actions.append(scored_final_action)
-
-        total_score = sum(i[1] for i in final_actions)        
-
+            final_actions.append(scored_final_action)    
         
-        return total_score
+        return total_profit
 
     def shapley(self,all_values,num,total_nums):
         tot = 0
@@ -205,14 +207,18 @@ class CentralAgent(object):
             coeff = factorial(S)*factorial(total_nums-S-1)/factorial(total_nums)
             num_with = bin_others[:num]+'1'+bin_others[num:]
             num_without = bin_others[:num]+'0'+bin_others[num:]
-            print(num_with,num_without,num)
             tot+=(all_values[num_with]-all_values[num_without])*1/(2**(total_nums-1))
         return tot
 
-    def truncated_shapley(self,true_shapley,total_nums,agent_action_choices,get_noise):
+    def truncated_shapley(self,true_shapley,total_nums,agent_action_choices,agent_nums,get_noise):
         predicted_shapley = [0 for i in range(total_nums)]
+        total_shapley = [0 for i in range(total_nums)]
+        num_runs = [0 for i in range(total_nums)]
+        previous_predicted_shapley = deepcopy(predicted_shapley)
         errors = []
-        for i in range(100):
+        differences = []
+        i = 0
+        for q in range(2):
             nums = [0 for k in range(total_nums)]
             permuted = [k for k in range(total_nums)]
             random.shuffle(permuted)
@@ -222,19 +228,29 @@ class CentralAgent(object):
                 new = deepcopy(nums)
                 new[j] = 1
                 new_value = self.get_score_ILP(agent_action_choices,''.join([str(k) for k in new]),get_noise)
-                print("New Value {} Previous Value {} Choices {}".format(new_value,previous_value,''.join([str(k) for k in new])))
-                predicted_shapley[j] = predicted_shapley[j]*(i/(i+1)) + 1/(i+1) * (new_value-previous_value)
+                total_shapley[j]+= (new_value-previous_value)
+                num_runs[j]+=1
+                predicted_shapley[j] = total_shapley[j]/num_runs[j]
                 previous_value = new_value
                 nums = new
                 errors.append(np.linalg.norm(np.array(predicted_shapley)-np.array(true_shapley)))
-        print("Errors are {}".format(errors))
+                differences.append(np.linalg.norm(np.array(previous_predicted_shapley)-np.array(predicted_shapley)))
+                previous_predicted_shapley = deepcopy(predicted_shapley)
+            i+=1
+        for i in range(len(agent_nums)):
+            self.truncated_shapley_final[agent_nums[i]]+=predicted_shapley[i]
+
+        return predicted_shapley
     
-    def random_shapley(self,true_shapley,total_nums,agent_action_choices,get_noise):
+    def random_shapley(self,true_shapley,total_nums,agent_action_choices,agent_nums,get_noise):
         predicted_shapley = [0 for i in range(total_nums)]
         total_shapley = [0 for i in range(total_nums)]
         num_runs = [0 for i in range(total_nums)]
+        previous_predicted_shapley = deepcopy(predicted_shapley)
         errors = []
-        for i in range(60):
+        differences = []
+        i = 0
+        for q in range(2):
             for current_num in range(total_nums):
                 nums = [random.randint(0,1) for k in range(total_nums)]
                 bigger_run = deepcopy(nums)
@@ -250,11 +266,50 @@ class CentralAgent(object):
                 predicted_shapley[current_num] = total_shapley[current_num]/(i+1)
                 for k in range(2):
                     errors.append(np.linalg.norm(np.array(predicted_shapley)-np.array(true_shapley)))
-            
-        print("Errors are {}".format(errors))
+                    differences.append(np.linalg.norm(np.array(previous_predicted_shapley)-np.array(predicted_shapley)))
 
+                previous_predicted_shapley = deepcopy(predicted_shapley)
+            i+=1
+        for i in range(len(agent_nums)):
+            self.random_shapley_final[agent_nums[i]]+=predicted_shapley[i]
 
+        return predicted_shapley
+        
 
+    def one_permutation(self,true_shapley,total_nums,agent_action_choices,agent_nums,get_noise):
+        predicted_shapley = [0 for i in range(total_nums)]
+        total_shapley = [0 for i in range(total_nums)]
+        num_runs = [0 for i in range(total_nums)]
+        previous_predicted_shapley = deepcopy(predicted_shapley)
+        errors = []
+        differences = []
+        i = 0
+        for q in range(2):
+            nums = [random.randint(0,1) for k in range(total_nums)]
+            const_value = self.get_score_ILP(agent_action_choices,''.join([str(k) for k in nums]),get_noise)
+            for current_num in range(total_nums):
+                other_run = deepcopy(nums)
+                other_run[current_num] = 1-nums[current_num]
+
+                other_value = self.get_score_ILP(agent_action_choices,''.join([str(k) for k in other_run]),get_noise)
+                if nums[current_num] == 1:
+                    diff = const_value-other_value
+                else:
+                    diff = other_value-const_value
+                
+                num_runs[current_num]+=1
+                total_shapley[current_num]+=diff
+                predicted_shapley[current_num] = total_shapley[current_num]/(i+1)
+                errors.append(np.linalg.norm(np.array(predicted_shapley)-np.array(true_shapley)))
+                differences.append(np.linalg.norm(np.array(previous_predicted_shapley)-np.array(predicted_shapley)))
+
+                previous_predicted_shapley = deepcopy(predicted_shapley)
+            i+=1
+        for i in range(len(agent_nums)):
+            self.one_permutation_shapley_final[agent_nums[i]]+=predicted_shapley[i]
+
+        return predicted_shapley
+        
     def _choose_actions_ILP(self, agent_action_choices: List[List[Tuple[Action, float]]], get_noise: Callable[[Var], float]=lambda x: 0) -> List[Tuple[Action, float]]:
         # Model as ILP
         model = Model()
@@ -276,9 +331,11 @@ class CentralAgent(object):
         # There is a decision variable for each (Action, Agent).
         # The coefficient is the value associated with the decision variable
         decision_variables: Dict[int, Dict[int, Tuple[Any, float]]] = {}
+        agent_nums = []
         for agent_idx, scored_actions in enumerate(agent_action_choices):
             if(len(scored_actions)>1):
                 total_agents+=1
+                agent_nums.append(agent_idx)
             
             for action, value in scored_actions:
                 # Convert action -> id if it hasn't already been done
@@ -303,27 +360,37 @@ class CentralAgent(object):
 
                 # Save to decision_variable data structure
                 decision_variables[action_id][agent_idx] = (variable, value)
+        compare_to_brute_force = False
 
-        # Calculate Shapley
-        """
-        if total_agents<=12:
-            # Let's brute force
-            all_vals = {}
-            for i in range(2**total_agents):
-                current_binary = ('0'*total_agents + bin(i)[2:])[-total_agents:]
-                all_vals[current_binary] = self.get_score_ILP(agent_action_choices,current_binary,get_noise)
+        if compare_to_brute_force:
+    
+            # Calculate Shapley
+            if total_agents<=12:
+                # Let's brute force
+                all_vals = {}
+                for i in range(2**total_agents):
+                    current_binary = ('0'*total_agents + bin(i)[2:])[-total_agents:]
+                    all_vals[current_binary] = self.get_score_ILP(agent_action_choices,current_binary,get_noise)
 
-            true_shapley = []
+                true_shapley = []
 
-            for i in range(total_agents):
-                true_shapley.append(self.shapley(all_vals,i,total_agents))
-
-            print("Truncated")
-            self.truncated_shapley(true_shapley,total_agents,agent_action_choices,get_noise)   
-            print("Random")
-            self.random_shapley(true_shapley,total_agents,agent_action_choices,get_noise)
-        """
-
+                for i in range(total_agents):
+                    true_shapley.append(self.shapley(all_vals,i,total_agents))
+                """
+                true_shapley = [0 for i in range(total_agents)]
+                """
+                print("Truncated")
+                self.truncated_shapley(true_shapley,total_agents,agent_action_choices,agent_nums,get_noise)   
+                print("Random")
+                self.random_shapley(true_shapley,total_agents,agent_action_choices,agent_nums,get_noise)
+                print("One permutation")
+                self.one_permutation(true_shapley,total_agents,agent_action_choices,agent_nums,get_noise)
+                print("True Shapley {}".format(true_shapley))
+        elif total_agents>0:
+            self.truncated_shapley([0 for i in range(total_agents)],total_agents,agent_action_choices,agent_nums,get_noise)   
+            self.random_shapley([0 for i in range(total_agents)],total_agents,agent_action_choices,agent_nums,get_noise)
+            self.one_permutation([0 for i in range(total_agents)],total_agents,agent_action_choices,agent_nums,get_noise)    
+    
         # Create Constraint 1: Only one action per Agent
         for agent_idx in range(len(agent_action_choices)):
             agent_specific_variables: List[Any] = []

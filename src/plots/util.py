@@ -1,3 +1,5 @@
+import glob 
+
 def running_mean(x, N):
     averages = np.convolve(x, np.ones((N,))/N, mode='valid')
     # pad with 0s
@@ -138,5 +140,5 @@ def get_data(get_baseline=True,get_rider_side=True,get_driver_side=True):
     for i in all_data:
         all_files+=glob.glob(i+"/*.pkl")
     all_pickles = [get_pickle(i) for i in all_files]
-    return all_picles
+    return all_pickles
 

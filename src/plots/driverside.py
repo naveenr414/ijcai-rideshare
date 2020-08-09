@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 def plot_lorenz(data,num_drivers):
     payment = payment_by_driver(data)
     X = np.array(sorted([i for i in payment.values()]))
@@ -6,6 +8,13 @@ def plot_lorenz(data,num_drivers):
     X_lorenz[0], X_lorenz[-1]
     plt.plot(np.arange(X_lorenz.size)/(X_lorenz.size-1), X_lorenz, label=current_label)    
     plt.plot([0,1], [0,1],color='g')
+
+def plot_income_distro(incomes,names):
+    plt.title("Income distribution for policies")
+    plt.boxplot(incomes,showfliers=False,vert=False)
+    plt.ylabel("Income per driver")
+    plt.xlabel("Payment, in dollars")
+    plt.yticks(list(range(1,len(names)+1)),names)
 
 def plot_gini_by_policy(data_list):
     lamb_values = set()
@@ -48,8 +57,4 @@ def box_whisker_income(data_list):
             and ('pickup_delay' not in i['settings'])]
     names = [get_nice_name(i) for i in data]
     incomes = [list(payment_by_driver(i).values()) for i in data]
-
-    plt.title("Income distribution for policies")
-    plt.boxplot(incomes,showfliers=False,vert=False)
-    plt.ylabel("Income per driver")
-    plt.yticks(list(range(1,len(names)+1)),names)
+    plot_income_distro(incomes,names)

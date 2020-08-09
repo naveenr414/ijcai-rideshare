@@ -1,5 +1,5 @@
 import Settings
-Settings.read_from_arguments()
+Settings.read_from_file("model_settings.txt")
 
 from Environment import NYEnvironment
 from CentralAgent import CentralAgent
@@ -323,5 +323,10 @@ if __name__ == '__main__':
         value_function.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)
 
         envt.num_days_trained += 1
+
+        print("Agent Profits {}".format(envt.driver_profits))
+        print("Truncated Shapley {}".format(central_agent.truncated_shapley_final))
+        print("Random Shapley {}".format(central_agent.random_shapley_final))
+        print("One Permutation Shapley {}".format(central_agent.one_permutation_shapley_final))
 
 print("Took {} seconds".format(int(time.time()-start)))
