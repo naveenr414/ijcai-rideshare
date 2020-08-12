@@ -593,7 +593,8 @@ def num_to_value_function(envt,num):
         value_function = GreedyValueFunction(envt,lambda_variance_rider_score)
     elif num == 14:
         value_function = PathBasedNN(envt,load_model_loc=model_loc)
-
+    elif num == 15:
+        value_function = PathBasedNN(envt,load_model_loc=model_loc)
 
     return value_function
 

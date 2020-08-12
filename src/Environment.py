@@ -207,7 +207,10 @@ class Environment(metaclass=ABCMeta):
             variance = Util.change_variance_rider(self,action,driver_num)
             lamb = Settings.get_value("lambda")
 
-            return profit - lamb*variance 
+            return profit - lamb*variance
+        elif Settings.get_value("value_num") == 15:
+            profit = Util.change_profit(self,action)
+            return profit
         else:
             return sum([request.value for request in action.requests])            
 

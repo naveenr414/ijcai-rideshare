@@ -1,3 +1,6 @@
+import matplotlib.pyplot as plt
+from util import *
+
 def get_coords(data):
     return [total_profit(data),1-gini(data),1/average_dropoff_delay(data),requests_completed(data),1/rider_fairness(data)]
 
@@ -33,6 +36,14 @@ def get_pareto(axis_one,axis_two,labels=[]):
     labels = [a for i,a in enumerate(labels) if pareto[i]]
 
     return axis_one,axis_two,labels
+
+def plot_std_income(data):
+    profit = [total_profit(i) for i in data]
+    std = [std_income(i) for i in data]
+    plt.scatter(profit,std)
+    plt.ylabel("Standard Deviation of Income")
+    plt.xlabel("Total Income")
+    plt.title("Total income vs. Standard Deviation")
 
 
 def plot_driver(all_pickles):

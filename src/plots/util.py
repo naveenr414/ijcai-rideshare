@@ -1,4 +1,6 @@
-import glob 
+import glob
+import pickle
+import numpy as np
 
 def running_mean(x, N):
     averages = np.convolve(x, np.ones((N,))/N, mode='valid')
@@ -16,7 +18,7 @@ def running_mean(x, N):
     
     return np.array(l)
 
-def payment_by_driver(data,n):
+def payment_by_driver(data,n=-1):
     if n == -1:
         n = len(data['epoch_each_agent_profit'])
 
@@ -55,6 +57,12 @@ def gini(data,n=-1):
 
     s =  a/(2*num_drivers**2 * mu)
     return s
+
+# Another Driver Fairness
+def std_income(data):
+    num_drivers = data['settings']['num_agents']
+    payment = payment_by_driver(data)
+    return np.std(list(payment.values()))
 
 # Rider utility 
 def average_dropoff_delay(data):
@@ -124,9 +132,9 @@ def get_nice_name(data):
 
 
 def get_data(get_baseline=True,get_rider_side=True,get_driver_side=True):
-    baseline = ["../logs/epoch_data/baseline"]
-    rider_side = ["../logs/epoch_data/waittime","../logs/epoch_data/entropy_rider","../logs/epoch_data/variance_rider"]
-    driver_side = ["../logs/epoch_data/variance","../logs/epoch_data/income_hard","../logs/epoch_data/entropy"]
+    baseline = ["../../logs/epoch_data/baseline"]
+    rider_side = ["../../logs/epoch_data/waittime","../../logs/epoch_data/entropy_rider","../../logs/epoch_data/variance_rider"]
+    driver_side = ["../../logs/epoch_data/variance","../../logs/epoch_data/income_hard","../../logs/epoch_data/entropy"]
 
     all_data = []
     if get_baseline:

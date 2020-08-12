@@ -44,6 +44,12 @@ class CentralAgent(object):
     def choose_actions(self, agent_action_choices: List[List[Tuple[Action, float]]], is_training: bool=True, epoch_num: int=1) -> List[Tuple[Action, float]]:
         return self._choose(agent_action_choices, is_training, epoch_num)
 
+    def reset(self):
+        self.one_permutation_shapley_final = [0 for i in range(self.envt.NUM_AGENTS)]
+        self.truncated_shapley_final = [0 for i in range(self.envt.NUM_AGENTS)]
+        self.random_shapley_final = [0 for i in range(self.envt.NUM_AGENTS)]
+
+
     def _epsilon_greedy(self, agent_action_choices: List[List[Tuple[Action, float]]], is_training: bool=True, epoch_num: int=1) -> List[Tuple[Action, float]]:
         # Decide whether or not to take random action
         rand_num = random()
@@ -211,6 +217,7 @@ class CentralAgent(object):
         return tot
 
     def truncated_shapley(self,true_shapley,total_nums,agent_action_choices,agent_nums,get_noise):
+        agent_action_choices = deepcopy(agent_action_choices)
         predicted_shapley = [0 for i in range(total_nums)]
         total_shapley = [0 for i in range(total_nums)]
         num_runs = [0 for i in range(total_nums)]
@@ -239,10 +246,10 @@ class CentralAgent(object):
             i+=1
         for i in range(len(agent_nums)):
             self.truncated_shapley_final[agent_nums[i]]+=predicted_shapley[i]
-
         return predicted_shapley
     
     def random_shapley(self,true_shapley,total_nums,agent_action_choices,agent_nums,get_noise):
+        agent_action_choices = deepcopy(agent_action_choices)
         predicted_shapley = [0 for i in range(total_nums)]
         total_shapley = [0 for i in range(total_nums)]
         num_runs = [0 for i in range(total_nums)]
@@ -250,6 +257,8 @@ class CentralAgent(object):
         errors = []
         differences = []
         i = 0
+
+        total_value = self.get_score_ILP(agent_action_choices,'1'*total_nums,get_noise)
         for q in range(2):
             for current_num in range(total_nums):
                 nums = [random.randint(0,1) for k in range(total_nums)]
@@ -270,13 +279,19 @@ class CentralAgent(object):
 
                 previous_predicted_shapley = deepcopy(predicted_shapley)
             i+=1
-        for i in range(len(agent_nums)):
-            self.random_shapley_final[agent_nums[i]]+=predicted_shapley[i]
+
+        normalization_constant = total_value/np.sum(predicted_shapley)
+        if np.sum(predicted_shapley) != 0:
+            predicted_shapley = [i*normalization_constant for i in predicted_shapley]
+
+            for i in range(len(agent_nums)):
+                self.random_shapley_final[agent_nums[i]]+=predicted_shapley[i]
 
         return predicted_shapley
         
 
     def one_permutation(self,true_shapley,total_nums,agent_action_choices,agent_nums,get_noise):
+        agent_action_choices = deepcopy(agent_action_choices)
         predicted_shapley = [0 for i in range(total_nums)]
         total_shapley = [0 for i in range(total_nums)]
         num_runs = [0 for i in range(total_nums)]
@@ -284,6 +299,7 @@ class CentralAgent(object):
         errors = []
         differences = []
         i = 0
+        total_value = self.get_score_ILP(agent_action_choices,'1'*total_nums,get_noise)
         for q in range(2):
             nums = [random.randint(0,1) for k in range(total_nums)]
             const_value = self.get_score_ILP(agent_action_choices,''.join([str(k) for k in nums]),get_noise)
@@ -305,8 +321,12 @@ class CentralAgent(object):
 
                 previous_predicted_shapley = deepcopy(predicted_shapley)
             i+=1
-        for i in range(len(agent_nums)):
-            self.one_permutation_shapley_final[agent_nums[i]]+=predicted_shapley[i]
+        normalization_constant = total_value/np.sum(predicted_shapley)
+        if np.sum(predicted_shapley) != 0:
+            predicted_shapley = [i*normalization_constant for i in predicted_shapley]
+
+            for i in range(len(agent_nums)):
+                self.one_permutation_shapley_final[agent_nums[i]]+=predicted_shapley[i]
 
         return predicted_shapley
         

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from util import *
 
 def plot_lorenz(data,num_drivers):
     payment = payment_by_driver(data)
@@ -49,7 +50,7 @@ def plot_gini_by_policy(data_list):
 
     return num_times
 
-def box_whisker_income(data_list):
+def box_whisker_income(data_list,ymin=-1,ymax=-1):
     data = [i for i in data_list if(i['settings']['value_num'] in [1,2,10]
                                and (i['settings']['value_num'] in [2] or i['settings']['training_days']>=2)
                                and ('lambda' not in i['settings'] or i['settings']['lambda']>=0))
@@ -58,3 +59,6 @@ def box_whisker_income(data_list):
     names = [get_nice_name(i) for i in data]
     incomes = [list(payment_by_driver(i).values()) for i in data]
     plot_income_distro(incomes,names)
+
+    if ymin!=-1 and ymax!=-1:
+        plt.xlim((ymin,ymax))
