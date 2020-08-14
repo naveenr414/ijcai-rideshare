@@ -318,6 +318,7 @@ if __name__ == '__main__':
         # Write our pickled resutls 
         if write_to_file:
             epoch_data['settings'] = Settings.settings_list
+            epoch_data['settings']['time'] = int(time.time()-start)
             epoch_data['truncated_shapley'] = central_agent.truncated_shapley_final
             epoch_data['random_shapley'] = central_agent.random_shapley_final
             epoch_data['one_permutation_shapley'] = central_agent.one_permutation_shapley_final
