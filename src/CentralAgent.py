@@ -40,6 +40,7 @@ class CentralAgent(object):
         self.one_permutation_shapley_final = [0 for i in range(envt.NUM_AGENTS)]
         self.truncated_shapley_final = [0 for i in range(envt.NUM_AGENTS)]
         self.random_shapley_final = [0 for i in range(envt.NUM_AGENTS)]
+        self.mode = "test"
 
     def choose_actions(self, agent_action_choices: List[List[Tuple[Action, float]]], is_training: bool=True, epoch_num: int=1) -> List[Tuple[Action, float]]:
         return self._choose(agent_action_choices, is_training, epoch_num)
@@ -48,6 +49,7 @@ class CentralAgent(object):
         self.one_permutation_shapley_final = [0 for i in range(self.envt.NUM_AGENTS)]
         self.truncated_shapley_final = [0 for i in range(self.envt.NUM_AGENTS)]
         self.random_shapley_final = [0 for i in range(self.envt.NUM_AGENTS)]
+        self.mode = "test"
 
 
     def _epsilon_greedy(self, agent_action_choices: List[List[Tuple[Action, float]]], is_training: bool=True, epoch_num: int=1) -> List[Tuple[Action, float]]:
@@ -381,7 +383,7 @@ class CentralAgent(object):
                 # Save to decision_variable data structure
                 decision_variables[action_id][agent_idx] = (variable, value)
         compare_to_brute_force = False
-
+        calculate_shapley=False
         if compare_to_brute_force:
     
             # Calculate Shapley
@@ -406,7 +408,8 @@ class CentralAgent(object):
                 print("One permutation")
                 self.one_permutation(true_shapley,total_agents,agent_action_choices,agent_nums,get_noise)
                 print("True Shapley {}".format(true_shapley))
-        elif total_agents>0:
+        elif total_agents>0 and self.mode == "test" and calculate_shapley:
+            print("HERE!!!")
             self.truncated_shapley([0 for i in range(total_agents)],total_agents,agent_action_choices,agent_nums,get_noise)   
             self.random_shapley([0 for i in range(total_agents)],total_agents,agent_action_choices,agent_nums,get_noise)
             self.one_permutation([0 for i in range(total_agents)],total_agents,agent_action_choices,agent_nums,get_noise)    

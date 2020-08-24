@@ -80,5 +80,67 @@ def plot_3():
     plot_std_income(real_data)
     plt.show()
 
-plot_3()
+def plot_4():
+    real_data_1 = [i for i in data if i['settings']['value_num'] in [1,11,12]
+                           and ('lambda' not in i['settings'] or i['settings']['lambda']>=0)
+                   and i['settings']['training_days'] != 1]
+    labels_1 = []
+    for i in real_data_1:
+        if i['settings']['value_num'] == 1:
+            labels_1.append('NeurADP training {}'.format(i['settings']['training_days']))
+        elif i['settings']['value_num'] == 11:
+            labels_1.append("Non-Neural Entropy, lamb {}".format(i['settings']['lambda']))
+        else:
+            labels_1.append("Neural Entropy, lamb {} training {}".format(i['settings']['lambda'],i['settings']['training_days']))
+
+    plot_num_min_request(real_data_1,labels_1)
+    plt.show()
+
+    real_data_2 = [i for i in data if i['settings']['value_num'] in [1,13,14]
+                           and ('lambda' not in i['settings'] or i['settings']['lambda']>=0)
+                   and i['settings']['training_days'] != 1]
+
+    labels_2 = []
+    for i in real_data_2:
+        if i['settings']['value_num'] == 1:
+            labels_2.append('NeurADP training {}'.format(i['settings']['training_days']))
+        elif i['settings']['value_num'] == 13:
+            labels_2.append("Non-Neural Variance, lamb {}".format(i['settings']['lambda']))
+        else:
+            labels_2.append("Neural Variance, lamb {} training {}".format(i['settings']['lambda'],i['settings']['training_days']))
+
+    plot_num_min_request(real_data_2,labels_2)
+    plt.show()
+
+def plot_5():
+    plot_num_min_request(data,['' for i in data])
+    plt.show()
+
+def plot_6():
+    colors = []
+    labels = []
+    for i in data:
+        if i['settings']['value_num'] == 1:
+            colors.append('r')
+            labels.append("NeurADP")
+        elif i['settings']['value_num'] in [7,8]:
+            colors.append('b')
+            labels.append("Entropy Driver")
+        elif i['settings']['value_num'] in [9,10]:
+            colors.append('y')
+            labels.append("Variance Driver")
+        elif i['settings']['value_num'] in [11,12]:
+            colors.append('k')
+            labels.append("Entropy Rider")
+        elif i['settings']['value_num'] in [13,14]:
+            colors.append('g')
+            labels.append("Variance Rider")
+        else:
+            colors.append('c')
+            labels.append("Other")
+
+    plot_num_min_request(data,labels,colors)
+    plt.show()
+
+plot_6()
 

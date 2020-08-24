@@ -79,12 +79,40 @@ def rider_fairness(data,clusters=10):
 
     return np.std(success)
 
+def get_region_percentages(data):
+    loc_requests = {}
+    loc_acceptances = {}
+
+    for i in set(region_labels):
+        loc_requests[i] = 0
+        loc_acceptances[i] = 0
+
+    for i in data['epoch_locations_all']:
+        for j in i:
+            loc_requests[loc_region[j]]+=1
+
+    for i in data['epoch_locations_accepted']:
+        for j in i:
+            loc_acceptances[loc_region[j]]+=1
+
+    success = []
+    for i in loc_requests:
+        success.append(loc_acceptances[i]/loc_requests[i])
+    return success
+
+# Rider fairness 
+def rider_min(data,clusters=10):
+    success = get_region_percentages(data)
+
+    return np.min(success)
+
 def load_kmeans():
     global loc_region
     global coords
+    global region_labels
     
     """Loading the KMeans regions"""
-    zone_lat_long = open("../data/ny/zone_latlong.csv").read().split("\n")
+    zone_lat_long = open("../../data/ny/zone_latlong.csv").read().split("\n")
     d = {}
     for i in zone_lat_long:
         if i!='':
@@ -92,12 +120,12 @@ def load_kmeans():
             d[a] = (float(b),float(c))
 
     coords = [d[i] for i in d]
-    labels = pickle.loads(open("../data/ny/labels.pkl","rb").read())
+    region_labels = pickle.loads(open("../../data/ny/labels.pkl","rb").read())
 
     loc_region = {}
 
-    for i in range(len(labels)):
-        loc_region[i] = labels[i]
+    for i in range(len(region_labels)):
+        loc_region[i] = region_labels[i]
 
     return loc_region
 
@@ -150,3 +178,9 @@ def get_data(get_baseline=True,get_rider_side=True,get_driver_side=True):
     all_pickles = [get_pickle(i) for i in all_files]
     return all_pickles
 
+def get_shapley():
+    all_files = glob.glob("../../logs/epoch_data/shapley_tests/*.pkl")
+    all_pickles = [get_pickle(i) for i in all_files]
+    return all_pickles
+
+load_kmeans()

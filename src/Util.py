@@ -22,28 +22,49 @@ def change_entropy(envt,action,driver_num):
     return np.log((ybar+R/N)/ybar * ((y+R)/y)**(-1/N))
 
 def change_entropy_rider(envt,action,driver_num):
-    percent_success = [envt.success_region[i]/envt.requests_region[i] for i in range(len(envt.requests_region))]
+    percent_success = []
+    for i in range(len(envt.requests_region)):
+        if envt.requests_region[i] == 0:
+            percent_success.append(0)
+        else:
+            percent_success.append(envt.success_region[i]/envt.requests_region[i])
     new_requests = [0 for i in range(len(envt.requests_region))]
 
     for i in action.requests:
         new_requests[envt.labels[i.pickup]]+=1
     
     current_entropy = get_entropy_list(percent_success)
-    percent_success_new = [(envt.success_region[i]+new_requests[i])/(envt.requests_region[i]+new_requests[i]) for i in range(len(envt.requests_region))]
+    percent_success_new = []
+    for i in range(len(envt.requests_region)):
+        if(envt.requests_region[i]+new_requests[i]) == 0:
+            percent_success_new.append(0)
+        else:
+            percent_success_new.append((envt.success_region[i]+new_requests[i])/(envt.requests_region[i]+new_requests[i]))
     new_entropy = get_entropy_list(percent_success_new)
 
     change_entropy = new_entropy-current_entropy
     return change_entropy
 
 def change_variance_rider(envt,action,driver_num):
-    percent_success = [envt.success_region[i]/envt.requests_region[i] for i in range(len(envt.requests_region))]
+    percent_success = []
+    for i in range(len(envt.requests_region)):
+        if envt.requests_region[i] == 0:
+            percent_success.append(0)
+        else:
+            percent_success.append(envt.success_region[i]/envt.requests_region[i])
+
     new_requests = [0 for i in range(len(envt.requests_region))]
 
     for i in action.requests:
         new_requests[envt.labels[i.pickup]]+=1
     
     current_variance = np.var(percent_success)
-    percent_success_new = [(envt.success_region[i]+new_requests[i])/(envt.requests_region[i]+new_requests[i]) for i in range(len(envt.requests_region))]
+    percent_success_new = []
+    for i in range(len(envt.requests_region)):
+        if(envt.requests_region[i]+new_requests[i]) == 0:
+            percent_success_new.append(0)
+        else:
+            percent_success_new.append((envt.success_region[i]+new_requests[i])/(envt.requests_region[i]+new_requests[i]))
     new_variance = np.var(percent_success_new)
 
     change_variance = new_variance-current_variance

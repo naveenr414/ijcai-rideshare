@@ -272,6 +272,7 @@ if __name__ == '__main__':
                          MAX_CAPACITY=CAPACITY, EPOCH_LENGTH=DECISION_INTERVAL)
     oracle = Oracle(envt)
     central_agent = CentralAgent(envt)
+    central_agent.mode = "train"
     value_function = ValueFunction.num_to_value_function(envt,value_num)
 
     print("Input settings {}".format(Settings.settings_list))
@@ -328,10 +329,5 @@ if __name__ == '__main__':
         value_function.add_to_logs('test_requests_served', total_requests_served, envt.num_days_trained)
 
         envt.num_days_trained += 1
-
-        print("Agent Profits {}".format(envt.driver_profits))
-        print("Truncated Shapley {}".format(central_agent.truncated_shapley_final))
-        print("Random Shapley {}".format(central_agent.random_shapley_final))
-        print("One Permutation Shapley {}".format(central_agent.one_permutation_shapley_final))
 
 print("Took {} seconds".format(int(time.time()-start)))

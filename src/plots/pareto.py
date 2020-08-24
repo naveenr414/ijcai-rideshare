@@ -45,6 +45,29 @@ def plot_std_income(data):
     plt.xlabel("Total Income")
     plt.title("Total income vs. Standard Deviation")
 
+def plot_num_min_request(all_pickles,labels,colors=[]):
+    num_list = [requests_completed(i) for i in all_pickles]
+    min_list = [rider_min(i) for i in all_pickles]     
+
+    if colors == []:
+        plt.scatter(num_list,min_list)
+    else:
+        for c in set(colors):
+            x_points = [num_list[i] for i in range(len(colors)) if colors[i] == c]
+            y_points = [min_list[i] for i in range(len(colors)) if colors[i] == c]
+            label = [labels[i] for i in range(len(colors)) if colors[i] == c][0]
+            plt.scatter(x_points,y_points,label=label,color=c)
+
+    plt.xlabel("Percent of Requests serviced")
+    plt.ylabel("Minimum Requests Serviced")
+    plt.title("Rider side requests serviced")
+
+    if colors == []:  
+        for i in range(len(all_pickles)):
+            plt.annotate(labels[i],(num_list[i],min_list[i]))
+
+    if colors != []:
+        plt.legend()
 
 def plot_driver(all_pickles):
     profit, inverse_inequality = get_two_axis(all_pickles,0,1)

@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from util import *
 
 def plot_histogram_of_locations(data,accepted=False):
     all_requests = []
@@ -19,27 +20,6 @@ def plot_histogram_of_locations(data,accepted=False):
         
     plt.bar(list(freq.keys()), freq.values(), color='g')
 
-
-def get_region_percentages(data):
-    loc_requests = {}
-    loc_acceptances = {}
-
-    for i in set(labels):
-        loc_requests[i] = 0
-        loc_acceptances[i] = 0
-
-    for i in data['epoch_locations_all']:
-        for j in i:
-            loc_requests[loc_region[j]]+=1
-
-    for i in data['epoch_locations_accepted']:
-        for j in i:
-            loc_acceptances[loc_region[j]]+=1
-
-    success = []
-    for i in loc_requests:
-        success.append(loc_acceptances[i]/loc_requests[i])
-    return success
 
 def income_requests(data_list):
     income = []
