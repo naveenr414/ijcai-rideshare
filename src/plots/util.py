@@ -1,6 +1,7 @@
 import glob
 import pickle
 import numpy as np
+import matplotlib.pyplot as plt 
 
 def running_mean(x, N):
     averages = np.convolve(x, np.ones((N,))/N, mode='valid')
@@ -18,6 +19,10 @@ def running_mean(x, N):
     
     return np.array(l)
 
+def plot_bar(data,labels):
+    plt.bar(list(range(len(data))),data)
+    plt.xticks(list(range(len(data))),labels,fontsize=16)
+
 def payment_by_driver(data,n=-1):
     if n == -1:
         n = len(data['epoch_each_agent_profit'])
@@ -31,6 +36,12 @@ def payment_by_driver(data,n=-1):
             driver_pays[j]+=k
 
     return driver_pays
+
+def income_25(data):
+    a = payment_by_driver(data)
+    a = list(a.values())
+    a = sorted(a)
+    return a[len(a)//4]
 
 def entropy(data,num_drivers):
     payment_driver = np.array(list((payment_by_driver(data,num_drivers).values())))
@@ -79,6 +90,9 @@ def rider_fairness(data,clusters=10):
 
     return np.std(success)
 
+def min_region(data):
+    return min(get_region_percentages(data))
+
 def get_region_percentages(data):
     loc_requests = {}
     loc_acceptances = {}
@@ -120,7 +134,7 @@ def load_kmeans():
             d[a] = (float(b),float(c))
 
     coords = [d[i] for i in d]
-    region_labels = pickle.loads(open("../../data/ny/labels.pkl","rb").read())
+    region_labels = pickle.loads(open("../../data/ny/real_labels.pkl","rb").read())
 
     loc_region = {}
 
@@ -183,4 +197,61 @@ def get_shapley():
     all_pickles = [get_pickle(i) for i in all_files]
     return all_pickles
 
-load_kmeans()
+def get_robustness():
+    all_files = glob.glob("../../logs/epoch_data/robustness/*.pkl")
+    all_pickles = [get_pickle(i) for i in all_files]
+    return all_pickles    
+
+def get_profitz():
+    all_files = glob.glob("../../logs/epoch_data/robustness_profitz/*.pkl")
+    all_pickles = [get_pickle(i) for i in all_files]
+    return all_pickles
+
+def plot_over_newyork():
+    all_requests = []
+    loc_regions = pickle.loads(open("../../data/ny/new_labels.pkl","rb").read())
+
+    rated_geo = pd.read_csv("../../data/ny/zone_latlong.csv",header=None,names=['zone','longitude','latitude'])
+    min_lon = rated_geo['longitude'].min()
+    max_lon = rated_geo['longitude'].max()
+    min_lat = rated_geo['latitude'].min()
+    max_lat = rated_geo['latitude'].max()
+
+    mean = np.mean(rated_geo['latitude'])
+    
+    bound = ((min_lon, max_lon, min_lat, max_lat))
+    map_bound = ((-74.05, -73.948, 40.682, 40.79))
+    colors = ['b','g','r','c','m','y','k','w','#888888','tab:pink']
+    basemap = plt.imread('../../data/ny/ny.jpg')    
+
+    plt.xlim(map_bound[0],map_bound[1])
+    plt.ylim(map_bound[2],map_bound[3])
+
+    for j in range(10):
+        points = []
+        for i in range(len(rated_geo)):
+            if loc_regions[rated_geo['zone'][i]] == j:
+                points.append(i)
+        plt.scatter('longitude', 'latitude', data = rated_geo[rated_geo.index.isin(points)],c=colors[j])
+    plt.xlabel('Longitude');
+    plt.ylabel('Latitude');
+    plt.title('Neighborhoods of New York');
+    plt.imshow(basemap, zorder=0, extent = map_bound, aspect= 'equal');
+    plt.show()
+
+def write_kmeans():
+
+    zone_lat_long = open("../../data/ny/zone_latlong.csv").read().split("\n")
+    d = {}
+    coords = []
+    for i in zone_lat_long:
+        if i!='':
+            a,b,c = i.split(",")
+            d[a] = (float(b),float(c))
+            coords.append((float(b),float(c)))
+
+    regions = KMeans(n_clusters=10).fit(coords)
+    labels = regions.labels_
+    centers = regions.cluster_centers_
+
+    pickle.dump(labels,open("","wb"))

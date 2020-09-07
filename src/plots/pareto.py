@@ -45,6 +45,31 @@ def plot_std_income(data):
     plt.xlabel("Total Income")
     plt.title("Total income vs. Standard Deviation")
 
+def plot_min_income(all_pickles,labels,colors=[]):
+    num_list = [total_profit(i) for i in all_pickles]
+    min_list = [income_25(i) for i in all_pickles]     
+
+
+    if colors == []:
+        plt.scatter(num_list,min_list)
+    else:
+        for c in set(colors):
+            x_points = [num_list[i] for i in range(len(colors)) if colors[i] == c]
+            y_points = [min_list[i] for i in range(len(colors)) if colors[i] == c]
+            label = [labels[i] for i in range(len(colors)) if colors[i] == c][0]
+            plt.scatter(x_points,y_points,label=label,color=c)
+
+    plt.xlabel("Profit",fontsize=16)
+    plt.ylabel("25th percentile income",fontsize=16)
+    plt.title("Profit vs. 25th percentile income",fontsize=20)
+
+    if colors == []:  
+        for i in range(len(all_pickles)):
+            plt.annotate(labels[i],(num_list[i],min_list[i]))
+
+    if colors != []:
+        plt.legend()
+
 def plot_num_min_request(all_pickles,labels,colors=[]):
     num_list = [requests_completed(i) for i in all_pickles]
     min_list = [rider_min(i) for i in all_pickles]     
@@ -58,40 +83,71 @@ def plot_num_min_request(all_pickles,labels,colors=[]):
             label = [labels[i] for i in range(len(colors)) if colors[i] == c][0]
             plt.scatter(x_points,y_points,label=label,color=c)
 
-    plt.xlabel("Percent of Requests serviced")
-    plt.ylabel("Minimum Requests Serviced")
-    plt.title("Rider side requests serviced")
+    plt.xlabel("Percent of Requests serviced",fontsize=16)
+    plt.ylabel("Minimum Requests Serviced",fontsize=16)
+    plt.title("Rider side requests serviced",fontsize=24)
 
     if colors == []:  
         for i in range(len(all_pickles)):
-            plt.annotate(labels[i],(num_list[i],min_list[i]))
+            plt.annotate(labels[i],(num_list[i],min_list[i]),fontsize=12)
 
     if colors != []:
         plt.legend()
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
 
-def plot_driver(all_pickles):
+def plot_driver(all_pickles,label=True,colors=[],legend=[]):
     profit, inverse_inequality = get_two_axis(all_pickles,0,1)
-    labels = [get_name(i) for i in all_pickles]
+    if label:
+        labels = [get_name(i) for i in all_pickles]
 
-    plt.scatter(profit,inverse_inequality)
-    plt.xlabel("Total Profit")
-    plt.ylabel("1-Gini Coefficient")
-    plt.title("Driver side all")
+    if colors != []:
+        for c in set(colors):
+            points = [i for i in range(len(colors)) if colors[i] == c]
+            x = [profit[i] for i in points]
+            y = [inverse_inequality[i] for i in points]
+            l = [legend[i] for i in points][0]
+            plt.scatter(x,y,color=c,label=l)
+        plt.xlabel("Total Profit")
+        plt.ylabel("1-Gini Coefficient")
+        plt.title("Driver side all")
+        plt.legend()
 
-    for i in range(len(all_pickles)):
-        plt.annotate(labels[i],(profit[i],inverse_inequality[i]))
+    else:
+        plt.scatter(profit,inverse_inequality)
+        plt.xlabel("Total Profit")
+        plt.ylabel("1-Gini Coefficient")
+        plt.title("Driver side all")
 
-def plot_rider(all_pickles):
+    if label:
+        for i in range(len(all_pickles)):
+            plt.annotate(labels[i],(profit[i],inverse_inequality[i]))
+
+def plot_rider(all_pickles,label=True,colors=[],legend=[]):
     profit, inverse_inequality = get_two_axis(all_pickles,3,4)
-    labels = [get_name(i) for i in all_pickles]
 
-    plt.scatter(profit,inverse_inequality)
-    plt.title("Rider side all")
-    plt.xlabel("Requests Completed")
-    plt.ylabel("1/std of location distribution")
+    if label:
+        labels = [get_name(i) for i in all_pickles]
+    if colors!=[]:
+        for c in set(colors):
+            points = [i for i in range(len(colors)) if colors[i] == c]
+            x = [profit[i] for i in points]
+            y = [inverse_inequality[i] for i in points]
+            l = [legend[i] for i in points][0]
+            plt.scatter(x,y,color=c,label=l)
+        plt.title("Rider side all")
+        plt.xlabel("Requests Completed")
+        plt.ylabel("1/std of location distribution")
+        plt.legend()
+    else:
+        plt.scatter(profit,inverse_inequality)
+        plt.title("Rider side all")
+        plt.xlabel("Requests Completed")
+        plt.ylabel("1/std of location distribution")
 
-    for i in range(len(all_pickles)):
-        plt.annotate(labels[i],(profit[i],inverse_inequality[i]))
+    if label:
+        for i in range(len(all_pickles)):
+            plt.annotate(labels[i],(profit[i],inverse_inequality[i]))
 
 def plot_driver_pareto(all_pickles):
     profit, inverse_inequality = get_two_axis(all_pickles,0,1)

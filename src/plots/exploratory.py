@@ -1,3 +1,8 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from util import *
+
 def plot_pca(a):
     all_data = deepcopy(a)
     # We'll let value num 3 = hard constraint rider
@@ -58,3 +63,5 @@ def move_from_unknown():
             print("mv {} ../entropy_rider".format(file_name))
         elif settings["value_num"] in [13,14]:
             print("mv {} ../variance_rider".format(file_name))
+
+plot_over_newyork()

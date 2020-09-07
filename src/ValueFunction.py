@@ -424,8 +424,6 @@ class PathBasedNN(NeuralNetworkBased):
 
 
             if Settings.has_value("nn_inputs") and "profit_z" in Settings.get_value("nn_inputs"):
-                print("Agent profit input {}".format(agent_profit_input))
-                print(self.envt.driver_profits)
                 input["agent_profit_input"].append(agent_profit_input)
 
         return input
