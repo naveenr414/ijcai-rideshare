@@ -134,7 +134,7 @@ def load_kmeans():
             d[a] = (float(b),float(c))
 
     coords = [d[i] for i in d]
-    region_labels = pickle.loads(open("../../data/ny/real_labels.pkl","rb").read())
+    region_labels = pickle.loads(open("../../data/ny/new_labels.pkl","rb").read())
 
     loc_region = {}
 
@@ -254,4 +254,4 @@ def write_kmeans():
     labels = regions.labels_
     centers = regions.cluster_centers_
 
-    pickle.dump(labels,open("","wb"))
+    pickle.dump(labels,open("../../data/ny/new_labels.pkl","wb"))

@@ -238,7 +238,7 @@ class NYEnvironment(Environment):
         SHORTESTPATH_FILE: str = self.DATA_DIR + 'zone_path.csv'
         self.shortest_path = read_csv(SHORTESTPATH_FILE, header=None).values
 
-        self.labels = pickle.loads(open("../data/ny/real_labels.pkl","rb").read())
+        self.labels = pickle.loads(open("../data/ny/new_labels.pkl","rb").read())
 
         IGNOREDZONES_FILE: str = self.DATA_DIR + 'ignorezonelist.txt'
         self.ignored_zones = read_csv(IGNOREDZONES_FILE, header=None).values.flatten()
