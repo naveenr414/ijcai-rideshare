@@ -1,2 +1,2 @@
-# NeurADP for Ride-pooling
-This is the code for the paper "Neural Approximate Dynamic Programming for On-Demand Ride-Pooling" that appears in the Proceedings of the Thirty-Fourth AAAI Conference on Artificial Intelligence.
+# Data Driven Methods for Balancing Fairness in Ride-Pooling
+Associated code for IJCAI 2021 Submission Contains code to run simulation of ride-pool matching algorithm with different objective functions Also contains code to test out income redistribution
