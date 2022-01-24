@@ -1,0 +1,12 @@
+cplex==12.10.0.0
+docplex==2.12.182
+Keras==2.2.4
+Keras-Applications==1.0.7
+Keras-Preprocessing==1.0.9
+matplotlib==3.1.1
+numpy==1.16.3
+pandas==0.24.2
+sklearn==0.0
+tensorflow==1.13.1
+tensorflow-estimator==1.13.0
+typing==3.7.4.1

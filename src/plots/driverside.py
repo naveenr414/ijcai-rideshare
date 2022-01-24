@@ -12,10 +12,10 @@ def plot_lorenz(data,num_drivers):
 
 def plot_income_distro(incomes,names):
     plt.title("Income distribution for policies",fontsize=20)
-    plt.boxplot(incomes,showfliers=True,vert=False)
-    plt.ylabel("Policy",fontsize=18)
-    plt.xlabel("Payment ($)",fontsize=18)
-    plt.yticks(list(range(1,len(names)+1)),names,fontsize=14)
+    plt.boxplot(incomes,showfliers=False,vert=False)
+    plt.ylabel("Policy",fontsize=24)
+    plt.xlabel("Payment ($)",fontsize=24)
+    plt.yticks(list(range(1,len(names)+1)),names,fontsize=18)
     plt.xticks(fontsize=18)
 
 def plot_gini_by_policy(data_list):

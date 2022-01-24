@@ -1,7 +1,8 @@
 import glob
 import pickle
 import numpy as np
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
+import pandas as pd
 
 def running_mean(x, N):
     averages = np.convolve(x, np.ones((N,))/N, mode='valid')
@@ -200,6 +201,9 @@ def get_shapley():
 def get_robustness():
     all_files = glob.glob("../../logs/epoch_data/robustness/*.pkl")
     all_pickles = [get_pickle(i) for i in all_files]
+    #other_loc = glob.glob("../../logs/epoch_data/robustness/old_14/*.pkl")
+    #all_pickles+=[get_pickle(i) for i in other_loc]
+    
     return all_pickles    
 
 def get_profitz():
@@ -221,7 +225,7 @@ def plot_over_newyork():
     
     bound = ((min_lon, max_lon, min_lat, max_lat))
     map_bound = ((-74.05, -73.948, 40.682, 40.79))
-    colors = ['b','g','r','c','m','y','k','w','#888888','tab:pink']
+    colors = ['w','g','r','c','m','y','k','b','#888888','tab:pink']
     basemap = plt.imread('../../data/ny/ny.jpg')    
 
     plt.xlim(map_bound[0],map_bound[1])
@@ -255,3 +259,7 @@ def write_kmeans():
     centers = regions.cluster_centers_
 
     pickle.dump(labels,open("../../data/ny/new_labels.pkl","wb"))
+
+load_kmeans()
+
+#plot_over_newyork()

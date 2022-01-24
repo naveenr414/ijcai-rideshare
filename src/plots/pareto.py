@@ -70,7 +70,7 @@ def plot_min_income(all_pickles,labels,colors=[]):
     if colors != []:
         plt.legend()
 
-def plot_num_min_request(all_pickles,labels,colors=[]):
+def plot_num_min_request(all_pickles,labels,colors=[],shapes=[]):
     num_list = [requests_completed(i) for i in all_pickles]
     min_list = [rider_min(i) for i in all_pickles]     
 
@@ -81,10 +81,10 @@ def plot_num_min_request(all_pickles,labels,colors=[]):
             x_points = [num_list[i] for i in range(len(colors)) if colors[i] == c]
             y_points = [min_list[i] for i in range(len(colors)) if colors[i] == c]
             label = [labels[i] for i in range(len(colors)) if colors[i] == c][0]
-            plt.scatter(x_points,y_points,label=label,color=c)
+            plt.scatter(x_points,y_points,label=label,color=c,marker=shapes[colors.index(c)],s=200)
 
-    plt.xlabel("Percent of Requests serviced",fontsize=16)
-    plt.ylabel("Minimum Requests Serviced",fontsize=16)
+    plt.xlabel("Overall Success Rate",fontsize=16)
+    plt.ylabel("Minimum Request Success Rate",fontsize=16)
     plt.title("Rider side requests serviced",fontsize=24)
 
     if colors == []:  
